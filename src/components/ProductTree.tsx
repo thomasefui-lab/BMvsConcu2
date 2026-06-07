@@ -8,6 +8,24 @@ interface ProductTreeProps {
   onSelectSite: (site: string) => void;
 }
 
+function CountSplit({
+  products,
+  collections,
+  className = "",
+}: {
+  products: number;
+  collections: number;
+  className?: string;
+}) {
+  return (
+    <span className={`tabular-nums ${className}`}>
+      {products.toLocaleString("fr-FR")}
+      <span className="mx-0.5 font-normal text-slate-400">|</span>
+      {collections.toLocaleString("fr-FR")}
+    </span>
+  );
+}
+
 export function ProductTree({ trees, selectedSite, onSelectSite }: ProductTreeProps) {
   const tree = trees.find((t) => t.site === selectedSite) ?? trees[0];
 
@@ -41,14 +59,29 @@ export function ProductTree({ trees, selectedSite, onSelectSite }: ProductTreePr
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-6">
         <div className="min-w-[900px]">
           {/* Racine */}
-          <div className="flex flex-col items-center">
-            <div className="rounded-md bg-brand-800 px-8 py-3 text-center text-white shadow-lg">
-              <div className="text-lg font-bold tracking-wide">{tree.label.toUpperCase()}</div>
+          <div className="flex items-start justify-center gap-4">
+            <div className="flex flex-col items-center">
+              <div className="rounded-md bg-brand-800 px-8 py-3 text-center text-white shadow-lg">
+                <div className="text-lg font-bold tracking-wide">{tree.label.toUpperCase()}</div>
+              </div>
+              <div className="mt-2 rounded border-2 border-brand-700 bg-white px-6 py-2 text-center text-sm font-semibold text-brand-900">
+                <CountSplit products={tree.total} collections={tree.totalCollections} />
+                <span className="mt-0.5 block text-[10px] font-normal text-slate-500">
+                  produits | collections
+                </span>
+              </div>
+              <div className="h-8 w-px bg-brand-400" />
             </div>
-            <div className="mt-2 rounded border-2 border-brand-700 bg-white px-6 py-2 text-center font-semibold text-brand-900">
-              {tree.total.toLocaleString("fr-FR")} produits
+
+            <div className="mt-1 min-w-[120px] rounded-lg border-2 border-brand-500 bg-white px-4 py-3 text-center shadow-sm">
+              <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                Collections
+              </div>
+              <div className="text-2xl font-bold text-brand-800">
+                {tree.totalCollections.toLocaleString("fr-FR")}
+              </div>
+              <div className="text-[10px] text-slate-400">noms uniques</div>
             </div>
-            <div className="h-8 w-px bg-brand-400" />
           </div>
 
           {/* Branches principales */}
@@ -75,7 +108,8 @@ export function ProductTree({ trees, selectedSite, onSelectSite }: ProductTreePr
                 </div>
 
                 <div className="mt-1 w-full rounded border border-brand-300 bg-white px-2 py-1 text-center text-[11px] font-medium">
-                  {cat.count} produit{cat.count > 1 ? "s" : ""}
+                  <CountSplit products={cat.count} collections={cat.collectionCount} />
+                  <span className="block text-[9px] font-normal text-slate-400">prod. | coll.</span>
                 </div>
 
                 <div className="mt-2 h-4 w-px bg-brand-300" />
@@ -87,8 +121,8 @@ export function ProductTree({ trees, selectedSite, onSelectSite }: ProductTreePr
                       <div className="flex-1 rounded border border-slate-300 bg-white px-1 py-1 text-center leading-tight">
                         {sub.label}
                       </div>
-                      <div className="w-12 rounded border border-slate-300 bg-white px-1 py-1 text-center font-semibold">
-                        {sub.count}
+                      <div className="min-w-[3.25rem] rounded border border-slate-300 bg-white px-1 py-1 text-center text-[9px] font-semibold leading-tight">
+                        <CountSplit products={sub.count} collections={sub.collectionCount} />
                       </div>
                     </div>
                   ))}

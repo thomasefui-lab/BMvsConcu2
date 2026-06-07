@@ -73,13 +73,31 @@ function collectTrueNoveltyKeys(products: ProductRow[]): Set<string> {
   return keys;
 }
 
+function collectionKey(name: string | null | undefined): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  return trimmed
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export function buildProductTree(site: SiteId, products: ProductRow[]): ProductTreeData {
   const siteProducts = [...latestByUrl(products.filter((p) => p.site === site)).values()];
   const total = siteProducts.length;
 
   const macroCounts = new Map<string, Map<string, number>>();
+  const macroCollections = new Map<string, Set<string>>();
+  const subCollections = new Map<string, Map<string, Set<string>>>();
+  const totalCollections = new Set<string>();
+
   for (const macro of TAXONOMY) {
     macroCounts.set(macro.id, new Map(macro.subcategories.map((s) => [s.id, 0])));
+    macroCollections.set(macro.id, new Set());
+    subCollections.set(
+      macro.id,
+      new Map(macro.subcategories.map((s) => [s.id, new Set<string>()])),
+    );
   }
 
   for (const product of siteProducts) {
@@ -87,15 +105,24 @@ export function buildProductTree(site: SiteId, products: ProductRow[]): ProductT
     const subMap = macroCounts.get(macroId) ?? new Map();
     subMap.set(subId, (subMap.get(subId) ?? 0) + 1);
     macroCounts.set(macroId, subMap);
+
+    const coll = collectionKey(product.collection_name);
+    if (!coll) continue;
+
+    totalCollections.add(coll);
+    macroCollections.get(macroId)?.add(coll);
+    subCollections.get(macroId)?.get(subId)?.add(coll);
   }
 
   const categories: MacroCategoryCount[] = TAXONOMY.map((macro) => {
     const subMap = macroCounts.get(macro.id) ?? new Map();
+    const subCollMap = subCollections.get(macro.id) ?? new Map();
     const subcategories = macro.subcategories
       .map((sub) => ({
         id: sub.id,
         label: sub.label,
         count: subMap.get(sub.id) ?? 0,
+        collectionCount: subCollMap.get(sub.id)?.size ?? 0,
       }))
       .filter((s) => s.count > 0);
 
@@ -104,6 +131,7 @@ export function buildProductTree(site: SiteId, products: ProductRow[]): ProductT
       id: macro.id,
       label: macro.label,
       count,
+      collectionCount: macroCollections.get(macro.id)?.size ?? 0,
       percent: total > 0 ? Math.round((count / total) * 100) : 0,
       subcategories,
     };
@@ -114,6 +142,7 @@ export function buildProductTree(site: SiteId, products: ProductRow[]): ProductT
     site,
     label: competitor?.label ?? site,
     total,
+    totalCollections: totalCollections.size,
     categories,
   };
 }

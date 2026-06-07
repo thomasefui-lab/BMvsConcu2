@@ -41,12 +41,14 @@ export interface SubCategoryCount {
   id: string;
   label: string;
   count: number;
+  collectionCount: number;
 }
 
 export interface MacroCategoryCount {
   id: string;
   label: string;
   count: number;
+  collectionCount: number;
   percent: number;
   subcategories: SubCategoryCount[];
 }
@@ -55,6 +57,7 @@ export interface ProductTreeData {
   site: SiteId;
   label: string;
   total: number;
+  totalCollections: number;
   categories: MacroCategoryCount[];
 }
 
