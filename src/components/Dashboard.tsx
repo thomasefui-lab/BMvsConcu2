@@ -77,7 +77,12 @@ export function Dashboard({ data }: DashboardProps) {
         </nav>
 
         {tab === "tree" && (
-          <ProductTree trees={trees} selectedSite={selectedSite} onSelectSite={setSelectedSite} />
+          <ProductTree
+            trees={trees}
+            products={data.products}
+            selectedSite={selectedSite}
+            onSelectSite={setSelectedSite}
+          />
         )}
         {tab === "novelties" && <NoveltiesPanel matrix={noveltyMatrix} topBySite={topNovelties} />}
         {tab === "bestsellers" && (

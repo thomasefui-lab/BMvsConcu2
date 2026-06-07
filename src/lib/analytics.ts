@@ -151,6 +151,28 @@ export function buildAllProductTrees(products: ProductRow[]): ProductTreeData[] 
   return COMPETITORS.map((c) => buildProductTree(c.id, products));
 }
 
+export interface CategoryProductFilter {
+  macroId: string;
+  subId?: string;
+}
+
+export function getProductsByCategory(
+  site: SiteId,
+  products: ProductRow[],
+  filter: CategoryProductFilter,
+): ProductRow[] {
+  const siteProducts = [...latestByUrl(products.filter((p) => p.site === site)).values()];
+
+  return siteProducts
+    .filter((product) => {
+      const { macroId, subId } = classifyProduct(product);
+      if (macroId !== filter.macroId) return false;
+      if (filter.subId && subId !== filter.subId) return false;
+      return true;
+    })
+    .sort((a, b) => (b.review_count ?? 0) - (a.review_count ?? 0));
+}
+
 export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] {
   const latest = latestByUrl(products);
   const trueNewUrls = collectTrueNoveltyKeys(products);
