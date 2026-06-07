@@ -30,8 +30,8 @@ export function Dashboard({ data }: DashboardProps) {
   const [selectedSite, setSelectedSite] = useState("bestmobilier");
 
   const trees = buildAllProductTrees(data.products);
-  const noveltyMatrix = buildNoveltyMatrix(data.products, data.events);
-  const topNovelties = buildTopNoveltiesBySite(data.products, data.events);
+  const noveltyMatrix = buildNoveltyMatrix(data.products);
+  const topNovelties = buildTopNoveltiesBySite(data.products);
   const bestSellers = buildBestSellers(data.products);
   const topGrowth = buildTopReviewGrowth(data.products);
 

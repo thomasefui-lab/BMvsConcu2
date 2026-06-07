@@ -123,7 +123,7 @@ export function buildAllProductTrees(products: ProductRow[]): ProductTreeData[] 
   return COMPETITORS.map((c) => buildProductTree(c.id, products));
 }
 
-export function buildNoveltyMatrix(products: ProductRow[], _events: DailyEventRow[]): NoveltyMatrixCell[] {
+export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] {
   const latest = latestByUrl(products);
   const trueNewUrls = collectTrueNoveltyKeys(products);
 
@@ -157,7 +157,6 @@ export function buildNoveltyMatrix(products: ProductRow[], _events: DailyEventRo
 
 export function buildTopNoveltiesBySite(
   products: ProductRow[],
-  _events: DailyEventRow[],
   limit = 10,
 ): Record<SiteId, NoveltyProduct[]> {
   const latest = latestByUrl(products);
