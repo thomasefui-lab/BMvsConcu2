@@ -66,7 +66,10 @@ async function fetchDashboardProducts(client: NonNullable<ReturnType<typeof crea
           .order("site", { ascending: true })
           .order("product_url", { ascending: true })
           .range(from, to);
-        return { data, error };
+        return {
+          data: (data ?? null) as Record<string, unknown>[] | null,
+          error: error ? { message: error.message } : null,
+        };
       });
       if (rows.length > 0) {
         return rows.map(parseProductRow);
@@ -87,7 +90,10 @@ async function fetchEvents(client: NonNullable<ReturnType<typeof createSupabaseS
       .in("event_type", ["new_product", "review_count_increase", "new_collection"])
       .order("detected_at", { ascending: false })
       .range(from, to);
-    return { data, error };
+    return {
+      data: (data ?? null) as Record<string, unknown>[] | null,
+      error: error ? { message: error.message } : null,
+    };
   });
   return rows.map(parseEventRow);
 }
