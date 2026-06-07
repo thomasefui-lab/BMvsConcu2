@@ -1,3 +1,4 @@
+import { dedupeVariants } from "./dedupe";
 import { classifyProduct, cleanProductName, TAXONOMY } from "./taxonomy";
 import type {
   BestSellerProduct,
@@ -163,6 +164,7 @@ export function buildTopNoveltiesBySite(
         product_url: current.product_url,
         product_name: cleanProductName(current.product_name),
         category_name: current.category_name,
+        collection_name: current.collection_name,
         review_count: currentReviews,
         review_growth: currentReviews,
         price_text: current.price_text,
@@ -172,7 +174,7 @@ export function buildTopNoveltiesBySite(
     }
 
     candidates.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
-    result[site] = candidates.slice(0, limit);
+    result[site] = dedupeVariants(candidates, limit);
   }
 
   return result;
@@ -195,6 +197,7 @@ export function buildBestSellers(products: ProductRow[], limit = 10): Record<Sit
         product_url: p.product_url,
         product_name: cleanProductName(p.product_name),
         category_name: p.category_name,
+        collection_name: p.collection_name,
         review_count: currentReviews,
         review_growth: Math.max(0, currentReviews - firstReviews),
         price_text: p.price_text,
@@ -203,7 +206,10 @@ export function buildBestSellers(products: ProductRow[], limit = 10): Record<Sit
     });
 
     mapped.sort((a, b) => b.review_count - a.review_count);
-    result[site] = mapped.filter((p) => p.review_count > 0).slice(0, limit);
+    result[site] = dedupeVariants(
+      mapped.filter((p) => p.review_count > 0),
+      limit,
+    );
   }
 
   return result;
@@ -226,6 +232,7 @@ export function buildTopReviewGrowth(products: ProductRow[], limit = 10): Record
         product_url: p.product_url,
         product_name: cleanProductName(p.product_name),
         category_name: p.category_name,
+        collection_name: p.collection_name,
         review_count: currentReviews,
         review_growth: Math.max(0, currentReviews - firstReviews),
         price_text: p.price_text,
@@ -234,7 +241,10 @@ export function buildTopReviewGrowth(products: ProductRow[], limit = 10): Record
     });
 
     mapped.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
-    result[site] = mapped.filter((p) => p.review_growth > 0).slice(0, limit);
+    result[site] = dedupeVariants(
+      mapped.filter((p) => p.review_growth > 0),
+      limit,
+    );
   }
 
   return result;

@@ -71,6 +71,7 @@ export interface NoveltyProduct {
   product_url: string;
   product_name: string;
   category_name: string;
+  collection_name?: string | null;
   review_count: number;
   review_growth: number;
   price_text: string | null;
@@ -83,6 +84,7 @@ export interface BestSellerProduct {
   product_url: string;
   product_name: string;
   category_name: string;
+  collection_name?: string | null;
   review_count: number;
   review_growth: number;
   price_text: string | null;
