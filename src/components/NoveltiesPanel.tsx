@@ -18,7 +18,8 @@ export function NoveltiesPanel({ matrix, topBySite }: NoveltiesPanelProps) {
         <div className="border-b border-slate-200 bg-brand-50 px-4 py-3">
           <h3 className="font-semibold text-brand-900">Nouveautés par catégorie</h3>
           <p className="text-xs text-slate-500">
-            Produit nouveau = première apparition sans avis. Remis en ligne avec avis = exclu.
+            Produit nouveau = détecté après la base de référence (1er scrape), sans avis à l&apos;entrée.
+            Remis en ligne avec avis = exclu.
           </p>
         </div>
         <div className="overflow-x-auto">
@@ -35,6 +36,14 @@ export function NoveltiesPanel({ matrix, topBySite }: NoveltiesPanelProps) {
               </tr>
             </thead>
             <tbody>
+              {macroGroups.length === 0 ? (
+                <tr>
+                  <td colSpan={2 + COMPETITORS.length} className="px-4 py-8 text-center text-slate-400">
+                    Aucune nouveauté depuis la base de référence — normal tant que les agents n&apos;ont
+                    tourné qu&apos;une fois.
+                  </td>
+                </tr>
+              ) : null}
               {macroGroups.map((macro) => {
                 const rows = matrix.filter((m) => m.macroLabel === macro);
                 return rows.map((row, idx) => (

@@ -45,6 +45,35 @@ function firstReviewCount(product: ProductRow, firstSnapshots: Map<string, Produ
   return first?.review_count ?? 0;
 }
 
+/** Jour du premier scrape par site = base de référence (pas de nouveautés ce jour-là). */
+function getSiteBaselineDay(products: ProductRow[], site: SiteId): string | null {
+  const days = products
+    .filter((p) => p.site === site)
+    .map((p) => p.scraped_at.slice(0, 10));
+  if (!days.length) return null;
+  return days.reduce((min, day) => (day < min ? day : min));
+}
+
+/**
+ * Vrai nouveau = apparu après le jour de référence ET sans avis à la première collecte.
+ */
+function collectTrueNoveltyKeys(products: ProductRow[]): Set<string> {
+  const first = earliestByUrl(products);
+  const keys = new Set<string>();
+
+  for (const [key, firstSnap] of first) {
+    const baselineDay = getSiteBaselineDay(products, firstSnap.site);
+    const firstDay = firstSnap.scraped_at.slice(0, 10);
+
+    if (baselineDay && firstDay <= baselineDay) continue;
+    if (firstReviewCount(firstSnap, first) > 0) continue;
+
+    keys.add(key);
+  }
+
+  return keys;
+}
+
 export function buildProductTree(site: SiteId, products: ProductRow[]): ProductTreeData {
   const siteProducts = [...latestByUrl(products.filter((p) => p.site === site)).values()];
   const total = siteProducts.length;
@@ -94,19 +123,9 @@ export function buildAllProductTrees(products: ProductRow[]): ProductTreeData[] 
   return COMPETITORS.map((c) => buildProductTree(c.id, products));
 }
 
-export function buildNoveltyMatrix(products: ProductRow[], events: DailyEventRow[]): NoveltyMatrixCell[] {
+export function buildNoveltyMatrix(products: ProductRow[], _events: DailyEventRow[]): NoveltyMatrixCell[] {
   const latest = latestByUrl(products);
-  const first = earliestByUrl(products);
-  const trueNewUrls = new Set<string>();
-
-  for (const event of events.filter((e) => e.event_type === "new_product")) {
-    const key = `${event.site}|${event.product_url}`;
-    const firstSnap = first.get(key);
-    const reviews = firstSnap?.review_count;
-    if (reviews === null || reviews === undefined || reviews === 0) {
-      trueNewUrls.add(key);
-    }
-  }
+  const trueNewUrls = collectTrueNoveltyKeys(products);
 
   const cells = new Map<string, NoveltyMatrixCell>();
   for (const macro of TAXONOMY) {
@@ -138,25 +157,23 @@ export function buildNoveltyMatrix(products: ProductRow[], events: DailyEventRow
 
 export function buildTopNoveltiesBySite(
   products: ProductRow[],
-  events: DailyEventRow[],
+  _events: DailyEventRow[],
   limit = 10,
 ): Record<SiteId, NoveltyProduct[]> {
   const latest = latestByUrl(products);
   const first = earliestByUrl(products);
+  const trueNewUrls = collectTrueNoveltyKeys(products);
   const result = {} as Record<SiteId, NoveltyProduct[]>;
 
   for (const competitor of COMPETITORS) {
     const site = competitor.id;
-    const newEvents = events.filter((e) => e.site === site && e.event_type === "new_product");
-
     const candidates: NoveltyProduct[] = [];
-    for (const event of newEvents) {
-      const key = `${site}|${event.product_url}`;
-      const current = latest.get(key);
-      if (!current) continue;
 
-      const firstReviews = firstReviewCount(current, first);
-      if (firstReviews > 0) continue;
+    for (const key of trueNewUrls) {
+      if (!key.startsWith(`${site}|`)) continue;
+      const current = latest.get(key);
+      const firstSnap = first.get(key);
+      if (!current || !firstSnap) continue;
 
       const currentReviews = current.review_count ?? 0;
       candidates.push({
@@ -169,7 +186,7 @@ export function buildTopNoveltiesBySite(
         review_growth: currentReviews,
         price_text: current.price_text,
         image_url: current.image_url ?? guessProductImageUrl(site, current.product_url),
-        detected_at: event.detected_at,
+        detected_at: firstSnap.scraped_at,
       });
     }
 
