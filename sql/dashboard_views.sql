@@ -19,7 +19,10 @@ from product_snapshots
 order by site, product_url, scraped_at asc;
 
 -- Vue combinée pour le dashboard (recommandée)
-create or replace view dashboard_products as
+-- DROP nécessaire si la vue existe déjà avec d'autres colonnes (PostgreSQL interdit d'insérer au milieu)
+drop view if exists dashboard_products;
+
+create view dashboard_products as
 select
   l.site,
   l.category_name,
