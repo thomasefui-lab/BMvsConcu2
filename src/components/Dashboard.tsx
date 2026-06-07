@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DashboardData } from "@/lib/types";
 import {
   buildAllProductTrees,
@@ -10,6 +10,7 @@ import {
   buildTopReviewGrowth,
   countParentReferences,
 } from "@/lib/analytics";
+import { loadOverrides, type TaxonomyOverrides } from "@/lib/classification-overrides";
 import { ProductTree } from "./ProductTree";
 import { NoveltiesPanel } from "./NoveltiesPanel";
 import { BestSellersPanel } from "./BestSellersPanel";
@@ -29,10 +30,21 @@ interface DashboardProps {
 export function Dashboard({ data }: DashboardProps) {
   const [tab, setTab] = useState<TabId>("tree");
   const [selectedSite, setSelectedSite] = useState("bestmobilier");
+  const [overrides, setOverrides] = useState<TaxonomyOverrides>(() => loadOverrides());
+
+  useEffect(() => {
+    setOverrides(loadOverrides());
+  }, []);
 
   const parentCount = countParentReferences(data.products);
-  const trees = buildAllProductTrees(data.products);
-  const noveltyMatrix = buildNoveltyMatrix(data.products);
+  const trees = useMemo(
+    () => buildAllProductTrees(data.products, overrides),
+    [data.products, overrides],
+  );
+  const noveltyMatrix = useMemo(
+    () => buildNoveltyMatrix(data.products, overrides),
+    [data.products, overrides],
+  );
   const topNovelties = buildTopNoveltiesBySite(data.products);
   const bestSellers = buildBestSellers(data.products);
   const topGrowth = buildTopReviewGrowth(data.products);
@@ -87,6 +99,8 @@ export function Dashboard({ data }: DashboardProps) {
             trees={trees}
             products={data.products}
             selectedSite={selectedSite}
+            overrides={overrides}
+            onOverridesChange={setOverrides}
             onSelectSite={setSelectedSite}
           />
         )}

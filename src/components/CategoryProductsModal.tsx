@@ -3,15 +3,85 @@
 import { useEffect } from "react";
 import type { ProductRow } from "@/lib/types";
 import { cleanProductName } from "@/lib/taxonomy";
-import { guessProductImageUrl } from "@/lib/images";
-import { ProductCard } from "./ProductCard";
+import { guessProductImageUrl, productPlaceholderColor } from "@/lib/images";
+import {
+  assignProduct,
+  clearProductAssignment,
+  type TaxonomyOverrides,
+} from "@/lib/classification-overrides";
+import { ProductAssignControls } from "./ProductAssignControls";
 
 interface CategoryProductsModalProps {
   open: boolean;
   title: string;
   siteLabel: string;
   products: ProductRow[];
+  overrides: TaxonomyOverrides;
+  onOverridesChange: (overrides: TaxonomyOverrides) => void;
   onClose: () => void;
+}
+
+function ModalProductRow({
+  product,
+  index,
+  overrides,
+  onOverridesChange,
+}: {
+  product: ProductRow;
+  index: number;
+  overrides: TaxonomyOverrides;
+  onOverridesChange: (overrides: TaxonomyOverrides) => void;
+}) {
+  const name = `${index + 1}. ${cleanProductName(product.product_name)}`;
+  const imageUrl = product.image_url ?? guessProductImageUrl(product.site, product.product_url);
+  const color = productPlaceholderColor(product.site);
+
+  return (
+    <div className="flex gap-2 rounded-lg border border-slate-200 bg-white p-3">
+      <a
+        href={product.product_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex min-w-0 flex-1 gap-3 transition hover:opacity-90"
+      >
+        <div
+          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md"
+          style={{ backgroundColor: imageUrl ? "#f8fafc" : color }}
+        >
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt={name}
+              className="h-full w-full object-cover"
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-lg font-bold text-white/90">
+              {name.charAt(name.indexOf(".") + 2) || "?"}
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-sm font-medium text-slate-800">{name}</p>
+          <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+            {product.price_text ? <span>{product.price_text}</span> : null}
+            <span>{product.review_count ?? 0} avis</span>
+          </div>
+        </div>
+      </a>
+      <ProductAssignControls
+        product={product}
+        overrides={overrides}
+        onAssign={(macroId, subId) => {
+          onOverridesChange(assignProduct(overrides, product.site, product.product_url, macroId, subId));
+        }}
+        onClear={() => {
+          onOverridesChange(clearProductAssignment(overrides, product.site, product.product_url));
+        }}
+      />
+    </div>
+  );
 }
 
 export function CategoryProductsModal({
@@ -19,6 +89,8 @@ export function CategoryProductsModal({
   title,
   siteLabel,
   products,
+  overrides,
+  onOverridesChange,
   onClose,
 }: CategoryProductsModalProps) {
   useEffect(() => {
@@ -61,7 +133,7 @@ export function CategoryProductsModal({
             </h2>
             <p className="mt-1 text-xs text-slate-500">
               {products.length.toLocaleString("fr-FR")} produit{products.length > 1 ? "s" : ""} — triés
-              par nombre d&apos;avis décroissant
+              par avis. Cliquez « Réaffecter » pour corriger un produit mal classé.
             </p>
           </div>
           <button
@@ -82,14 +154,12 @@ export function CategoryProductsModal({
           ) : (
             <div className="space-y-2">
               {products.map((product, index) => (
-                <ProductCard
+                <ModalProductRow
                   key={product.product_url}
-                  site={product.site}
-                  name={`${index + 1}. ${cleanProductName(product.product_name)}`}
-                  url={product.product_url}
-                  imageUrl={product.image_url ?? guessProductImageUrl(product.site, product.product_url)}
-                  priceText={product.price_text}
-                  reviewCount={product.review_count ?? 0}
+                  product={product}
+                  index={index}
+                  overrides={overrides}
+                  onOverridesChange={onOverridesChange}
                 />
               ))}
             </div>

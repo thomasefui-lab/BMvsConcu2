@@ -1,5 +1,12 @@
+import {
+  EMPTY_OVERRIDES,
+  getEffectiveClassification,
+  getSubcategoryLabel,
+  subcategoriesForMacro,
+  type TaxonomyOverrides,
+} from "./classification-overrides";
 import { dedupeToParentReferences, latestParentProducts, parentReferenceKey } from "./dedupe";
-import { classifyProduct, cleanProductName, TAXONOMY } from "./taxonomy";
+import { cleanProductName, TAXONOMY } from "./taxonomy";
 import type {
   BestSellerProduct,
   MacroCategoryCount,
@@ -82,7 +89,24 @@ function collectionKey(name: string | null | undefined): string | null {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-export function buildProductTree(site: SiteId, products: ProductRow[]): ProductTreeData {
+function ensureMacroMaps(
+  macroId: string,
+  macroCounts: Map<string, Map<string, number>>,
+  macroCollections: Map<string, Set<string>>,
+  subCollections: Map<string, Map<string, Set<string>>>,
+) {
+  if (!macroCounts.has(macroId)) {
+    macroCounts.set(macroId, new Map());
+    macroCollections.set(macroId, new Set());
+    subCollections.set(macroId, new Map());
+  }
+}
+
+export function buildProductTree(
+  site: SiteId,
+  products: ProductRow[],
+  overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+): ProductTreeData {
   const siteProducts = latestParentProducts(products, site);
   const total = siteProducts.length;
 
@@ -91,38 +115,34 @@ export function buildProductTree(site: SiteId, products: ProductRow[]): ProductT
   const subCollections = new Map<string, Map<string, Set<string>>>();
   const totalCollections = new Set<string>();
 
-  for (const macro of TAXONOMY) {
-    macroCounts.set(macro.id, new Map(macro.subcategories.map((s) => [s.id, 0])));
-    macroCollections.set(macro.id, new Set());
-    subCollections.set(
-      macro.id,
-      new Map(macro.subcategories.map((s) => [s.id, new Set<string>()])),
-    );
-  }
-
   for (const product of siteProducts) {
-    const { macroId, subId } = classifyProduct(product);
-    const subMap = macroCounts.get(macroId) ?? new Map();
+    const { macroId, subId } = getEffectiveClassification(product, overrides);
+    ensureMacroMaps(macroId, macroCounts, macroCollections, subCollections);
+
+    const subMap = macroCounts.get(macroId)!;
     subMap.set(subId, (subMap.get(subId) ?? 0) + 1);
-    macroCounts.set(macroId, subMap);
 
     const coll = collectionKey(product.collection_name);
     if (!coll) continue;
 
     totalCollections.add(coll);
-    macroCollections.get(macroId)?.add(coll);
-    subCollections.get(macroId)?.get(subId)?.add(coll);
+    macroCollections.get(macroId)!.add(coll);
+    const subCollMap = subCollections.get(macroId)!;
+    const subSet = subCollMap.get(subId) ?? new Set<string>();
+    subSet.add(coll);
+    subCollMap.set(subId, subSet);
   }
 
   const categories: MacroCategoryCount[] = TAXONOMY.map((macro) => {
     const subMap = macroCounts.get(macro.id) ?? new Map();
     const subCollMap = subCollections.get(macro.id) ?? new Map();
-    const subcategories = macro.subcategories
-      .map((sub) => ({
-        id: sub.id,
-        label: sub.label,
-        count: subMap.get(sub.id) ?? 0,
-        collectionCount: subCollMap.get(sub.id)?.size ?? 0,
+    const subIds = subcategoriesForMacro(macro.id, overrides);
+    const subcategories = subIds
+      .map((subId) => ({
+        id: subId,
+        label: getSubcategoryLabel(subId),
+        count: subMap.get(subId) ?? 0,
+        collectionCount: subCollMap.get(subId)?.size ?? 0,
       }))
       .filter((s) => s.count > 0);
 
@@ -147,8 +167,11 @@ export function buildProductTree(site: SiteId, products: ProductRow[]): ProductT
   };
 }
 
-export function buildAllProductTrees(products: ProductRow[]): ProductTreeData[] {
-  return COMPETITORS.map((c) => buildProductTree(c.id, products));
+export function buildAllProductTrees(
+  products: ProductRow[],
+  overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+): ProductTreeData[] {
+  return COMPETITORS.map((c) => buildProductTree(c.id, products, overrides));
 }
 
 export interface CategoryProductFilter {
@@ -160,12 +183,13 @@ export function getProductsByCategory(
   site: SiteId,
   products: ProductRow[],
   filter: CategoryProductFilter,
+  overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
 ): ProductRow[] {
   const siteProducts = latestParentProducts(products, site);
 
   return siteProducts
     .filter((product) => {
-      const { macroId, subId } = classifyProduct(product);
+      const { macroId, subId } = getEffectiveClassification(product, overrides);
       if (macroId !== filter.macroId) return false;
       if (filter.subId && subId !== filter.subId) return false;
       return true;
@@ -173,7 +197,10 @@ export function getProductsByCategory(
     .sort((a, b) => (b.review_count ?? 0) - (a.review_count ?? 0));
 }
 
-export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] {
+export function buildNoveltyMatrix(
+  products: ProductRow[],
+  overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+): NoveltyMatrixCell[] {
   const latest = latestByUrl(products);
   const trueNewUrls = collectTrueNoveltyKeys(products);
 
@@ -203,7 +230,7 @@ export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] 
   for (const key of trueNewUrls) {
     const product = latest.get(key);
     if (!product) continue;
-    const { macroId, subId } = classifyProduct(product);
+    const { macroId, subId } = getEffectiveClassification(product, overrides);
     const cellKey = `${macroId}|${subId}`;
     const cell = cells.get(cellKey);
     const parentSets = parentKeysByCell.get(cellKey);
