@@ -9,7 +9,7 @@ const DEMO_PATH = path.join(process.cwd(), "public", "demo-data.json");
 const SITES: SiteId[] = ["bestmobilier", "bobochic", "sweeek", "baita", "habitat"];
 
 const PRODUCT_COLUMNS =
-  "site,category_name,category_url,product_url,product_name,collection_name,price_cents,price_text,review_count,badges,position,scraped_at,first_review_count";
+  "site,category_name,category_url,product_url,product_name,collection_name,price_cents,price_text,review_count,badges,position,scraped_at,image_url,first_review_count";
 
 const EVENT_COLUMNS =
   "site,event_type,category_name,product_url,product_name,old_value,new_value,detected_at";

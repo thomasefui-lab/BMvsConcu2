@@ -33,11 +33,14 @@ select
   l.badges,
   l.position,
   l.scraped_at,
+  coalesce(l.image_url, p.image_url) as image_url,
   f.first_review_count,
   f.first_scraped_at
 from latest_product_snapshots l
 left join first_product_snapshots f
-  on f.site = l.site and f.product_url = l.product_url;
+  on f.site = l.site and f.product_url = l.product_url
+left join products p
+  on p.site = l.site and p.url = l.product_url;
 
 -- Accès lecture pour le dashboard (clé anon)
 grant select on latest_product_snapshots to anon, authenticated;

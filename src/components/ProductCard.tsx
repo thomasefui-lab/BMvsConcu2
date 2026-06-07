@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { useState } from "react";
 import type { SiteId } from "@/lib/types";
 import { productPlaceholderColor } from "@/lib/images";
 
@@ -25,7 +25,9 @@ export function ProductCard({
   reviewGrowth,
   meta,
 }: ProductCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const color = productPlaceholderColor(site);
+  const showImage = imageUrl && !imageFailed;
 
   return (
     <a
@@ -36,18 +38,16 @@ export function ProductCard({
     >
       <div
         className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md"
-        style={{ backgroundColor: imageUrl ? "#f8fafc" : color }}
+        style={{ backgroundColor: showImage ? "#f8fafc" : color }}
       >
-        {imageUrl ? (
-          <Image
+        {showImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
             src={imageUrl}
             alt={name}
-            fill
-            className="object-cover"
-            unoptimized
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
+            className="h-full w-full object-cover"
+            loading="lazy"
+            onError={() => setImageFailed(true)}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-lg font-bold text-white/90">
