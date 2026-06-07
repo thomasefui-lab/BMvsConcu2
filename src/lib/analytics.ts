@@ -2,7 +2,6 @@ import { dedupeVariants } from "./dedupe";
 import { classifyProduct, cleanProductName, TAXONOMY } from "./taxonomy";
 import type {
   BestSellerProduct,
-  DailyEventRow,
   MacroCategoryCount,
   NoveltyMatrixCell,
   NoveltyProduct,
