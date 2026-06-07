@@ -8,6 +8,7 @@ import {
   buildNoveltyMatrix,
   buildTopNoveltiesBySite,
   buildTopReviewGrowth,
+  countParentReferences,
 } from "@/lib/analytics";
 import { ProductTree } from "./ProductTree";
 import { NoveltiesPanel } from "./NoveltiesPanel";
@@ -29,6 +30,7 @@ export function Dashboard({ data }: DashboardProps) {
   const [tab, setTab] = useState<TabId>("tree");
   const [selectedSite, setSelectedSite] = useState("bestmobilier");
 
+  const parentCount = countParentReferences(data.products);
   const trees = buildAllProductTrees(data.products);
   const noveltyMatrix = buildNoveltyMatrix(data.products);
   const topNovelties = buildTopNoveltiesBySite(data.products);
@@ -53,7 +55,11 @@ export function Dashboard({ data }: DashboardProps) {
                   {data.source === "supabase" ? "Supabase (live)" : "Données démo locales"}
                 </span>
               </p>
-              <p>{data.products.length.toLocaleString("fr-FR")} produits uniques</p>
+              <p>
+                {parentCount.toLocaleString("fr-FR")} références parent
+                <span className="text-brand-300"> · </span>
+                {data.products.length.toLocaleString("fr-FR")} URLs
+              </p>
             </div>
           </div>
         </div>

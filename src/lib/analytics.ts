@@ -1,4 +1,4 @@
-import { dedupeVariants } from "./dedupe";
+import { dedupeToParentReferences, latestParentProducts, parentReferenceKey } from "./dedupe";
 import { classifyProduct, cleanProductName, TAXONOMY } from "./taxonomy";
 import type {
   BestSellerProduct,
@@ -83,7 +83,7 @@ function collectionKey(name: string | null | undefined): string | null {
 }
 
 export function buildProductTree(site: SiteId, products: ProductRow[]): ProductTreeData {
-  const siteProducts = [...latestByUrl(products.filter((p) => p.site === site)).values()];
+  const siteProducts = latestParentProducts(products, site);
   const total = siteProducts.length;
 
   const macroCounts = new Map<string, Map<string, number>>();
@@ -161,7 +161,7 @@ export function getProductsByCategory(
   products: ProductRow[],
   filter: CategoryProductFilter,
 ): ProductRow[] {
-  const siteProducts = [...latestByUrl(products.filter((p) => p.site === site)).values()];
+  const siteProducts = latestParentProducts(products, site);
 
   return siteProducts
     .filter((product) => {
@@ -178,6 +178,8 @@ export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] 
   const trueNewUrls = collectTrueNoveltyKeys(products);
 
   const cells = new Map<string, NoveltyMatrixCell>();
+  const parentKeysByCell = new Map<string, Record<SiteId, Set<string>>>();
+
   for (const macro of TAXONOMY) {
     for (const sub of macro.subcategories) {
       const id = `${macro.id}|${sub.id}`;
@@ -188,6 +190,13 @@ export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] 
         subLabel: sub.label,
         counts: { bestmobilier: 0, bobochic: 0, sweeek: 0, baita: 0, habitat: 0 },
       });
+      parentKeysByCell.set(id, {
+        bestmobilier: new Set(),
+        bobochic: new Set(),
+        sweeek: new Set(),
+        baita: new Set(),
+        habitat: new Set(),
+      });
     }
   }
 
@@ -197,8 +206,21 @@ export function buildNoveltyMatrix(products: ProductRow[]): NoveltyMatrixCell[] 
     const { macroId, subId } = classifyProduct(product);
     const cellKey = `${macroId}|${subId}`;
     const cell = cells.get(cellKey);
-    if (cell) {
-      cell.counts[product.site] += 1;
+    const parentSets = parentKeysByCell.get(cellKey);
+    if (!cell || !parentSets) continue;
+
+    const parentKey = parentReferenceKey({
+      ...product,
+      review_count: product.review_count ?? 0,
+    });
+    parentSets[product.site].add(parentKey);
+  }
+
+  for (const [cellKey, cell] of cells) {
+    const parentSets = parentKeysByCell.get(cellKey);
+    if (!parentSets) continue;
+    for (const competitor of COMPETITORS) {
+      cell.counts[competitor.id] = parentSets[competitor.id].size;
     }
   }
 
@@ -239,79 +261,87 @@ export function buildTopNoveltiesBySite(
       });
     }
 
-    candidates.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
-    result[site] = dedupeVariants(candidates, limit);
+    const parents = dedupeToParentReferences(
+      candidates.map((c) => ({ ...c, product_name: c.product_name, review_count: c.review_count })),
+    );
+    parents.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
+    result[site] = parents.slice(0, limit) as NoveltyProduct[];
   }
 
   return result;
 }
 
 export function buildBestSellers(products: ProductRow[], limit = 10): Record<SiteId, BestSellerProduct[]> {
-  const latest = latestByUrl(products);
   const first = earliestByUrl(products);
   const result = {} as Record<SiteId, BestSellerProduct[]>;
 
   for (const competitor of COMPETITORS) {
     const site = competitor.id;
-    const siteProducts = [...latest.values()].filter((p) => p.site === site);
+    const siteProducts = latestParentProducts(products, site);
 
-    const mapped: BestSellerProduct[] = siteProducts.map((p) => {
-      const currentReviews = p.review_count ?? 0;
-      const firstReviews = firstReviewCount(p, first);
-      return {
-        site,
-        product_url: p.product_url,
-        product_name: cleanProductName(p.product_name),
-        category_name: p.category_name,
-        collection_name: p.collection_name,
-        review_count: currentReviews,
-        review_growth: Math.max(0, currentReviews - firstReviews),
-        price_text: p.price_text,
-        image_url: p.image_url ?? guessProductImageUrl(site, p.product_url),
-      };
-    });
+    const mapped: BestSellerProduct[] = siteProducts
+      .filter((p) => (p.review_count ?? 0) > 0)
+      .map((p) => {
+        const currentReviews = p.review_count ?? 0;
+        const firstReviews = firstReviewCount(p, first);
+        return {
+          site,
+          product_url: p.product_url,
+          product_name: cleanProductName(p.product_name),
+          category_name: p.category_name,
+          collection_name: p.collection_name,
+          review_count: currentReviews,
+          review_growth: Math.max(0, currentReviews - firstReviews),
+          price_text: p.price_text,
+          image_url: p.image_url ?? guessProductImageUrl(site, p.product_url),
+        };
+      });
 
     mapped.sort((a, b) => b.review_count - a.review_count);
-    result[site] = dedupeVariants(
-      mapped.filter((p) => p.review_count > 0),
-      limit,
-    );
+    result[site] = mapped.slice(0, limit);
   }
 
   return result;
 }
 
 export function buildTopReviewGrowth(products: ProductRow[], limit = 10): Record<SiteId, BestSellerProduct[]> {
-  const latest = latestByUrl(products);
   const first = earliestByUrl(products);
   const result = {} as Record<SiteId, BestSellerProduct[]>;
 
   for (const competitor of COMPETITORS) {
     const site = competitor.id;
-    const siteProducts = [...latest.values()].filter((p) => p.site === site);
+    const siteProducts = latestParentProducts(products, site);
 
-    const mapped: BestSellerProduct[] = siteProducts.map((p) => {
-      const currentReviews = p.review_count ?? 0;
-      const firstReviews = firstReviewCount(p, first);
-      return {
-        site,
-        product_url: p.product_url,
-        product_name: cleanProductName(p.product_name),
-        category_name: p.category_name,
-        collection_name: p.collection_name,
-        review_count: currentReviews,
-        review_growth: Math.max(0, currentReviews - firstReviews),
-        price_text: p.price_text,
-        image_url: p.image_url ?? guessProductImageUrl(site, p.product_url),
-      };
-    });
+    const mapped: BestSellerProduct[] = siteProducts
+      .filter((p) => {
+        const currentReviews = p.review_count ?? 0;
+        const firstReviews = firstReviewCount(p, first);
+        return Math.max(0, currentReviews - firstReviews) > 0;
+      })
+      .map((p) => {
+        const currentReviews = p.review_count ?? 0;
+        const firstReviews = firstReviewCount(p, first);
+        return {
+          site,
+          product_url: p.product_url,
+          product_name: cleanProductName(p.product_name),
+          category_name: p.category_name,
+          collection_name: p.collection_name,
+          review_count: currentReviews,
+          review_growth: Math.max(0, currentReviews - firstReviews),
+          price_text: p.price_text,
+          image_url: p.image_url ?? guessProductImageUrl(site, p.product_url),
+        };
+      });
 
     mapped.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
-    result[site] = dedupeVariants(
-      mapped.filter((p) => p.review_growth > 0),
-      limit,
-    );
+    result[site] = mapped.slice(0, limit);
   }
 
   return result;
+}
+
+/** Nombre total de références parent (hors déclinaisons couleur) pour l'en-tête dashboard. */
+export function countParentReferences(products: ProductRow[]): number {
+  return latestParentProducts(products).length;
 }

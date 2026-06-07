@@ -51,7 +51,7 @@ export const TAXONOMY: MacroCategoryDef[] = [
       { id: "commode", label: "Commodes & consoles", keywords: ["commode", "console", "chiffonnier", "meuble d'appoint"] },
       { id: "bibliotheque", label: "Bibliothèques & étagères", keywords: ["bibliothèque", "bibliotheque", "étagère", "etagere", "etagere", "rangement ouvert"] },
       { id: "bureau", label: "Bureaux", keywords: ["bureau", "chaise de bureau", "fauteuil de bureau", "secrétaire", "secretaire"] },
-      { id: "autres_sejour", label: "Autres meubles", keywords: ["meuble", "ensemble de meubles", "vitrine", "armoire vitrine"] },
+      { id: "autres_sejour", label: "Autres meubles", keywords: ["ensemble de meubles", "vitrine", "armoire vitrine", "meuble tv", "etagere murale"] },
     ],
   },
   {
@@ -135,7 +135,8 @@ export const TAXONOMY: MacroCategoryDef[] = [
     categoryKeywords: ["déco", "deco", "décoration", "decoration", "tapis", "luminaire", "linge", "accessoire"],
     subcategories: [
       { id: "tapis", label: "Tapis", keywords: ["tapis", "paillasson", "carpet"] },
-      { id: "coussin", label: "Coussins & plaids", keywords: ["coussin", "housse de coussin", "plaid", "throw", "jeté", "jete"] },
+      { id: "coussin", label: "Coussins", keywords: ["coussin", "housse de coussin", "oreiller", "coussin de dossier"] },
+      { id: "plaid", label: "Plaids", keywords: ["plaid", "throw", "jeté", "jete"] },
       { id: "luminaire", label: "Luminaires", keywords: ["lampe", "luminaire", "suspension", "applique", "éclairage", "eclairage", "lampadaire", "abat-jour", "abat jour", "spot "] },
       { id: "linge", label: "Linge de maison", keywords: ["linge de maison", "linge de lit", "housse de couette", "rideau", "serviette", "torchon"] },
       { id: "animaux", label: "Animaux", keywords: ["chien", "chat", "niche", "panier animal", "griffoir", "litiere", "litière"] },
@@ -184,7 +185,8 @@ const URL_RULES: { macro: string; sub: string; patterns: string[] }[] = [
   { macro: "chambre", sub: "armoire", patterns: ["/armoire", "/dressing", "/penderie"] },
   { macro: "chambre", sub: "matelas", patterns: ["/matelas", "/sommier"] },
   { macro: "deco", sub: "tapis", patterns: ["/tapis", "-tapis-"] },
-  { macro: "deco", sub: "coussin", patterns: ["/coussin", "/plaids", "/plaid"] },
+  { macro: "deco", sub: "coussin", patterns: ["/coussin", "-coussin-", "coussin-en-", "coussin-polyester", "coussin-coton", "housse-de-coussin"] },
+  { macro: "deco", sub: "plaid", patterns: ["/plaids", "/plaid", "-plaid-"] },
   { macro: "deco", sub: "luminaire", patterns: ["/luminaire", "/applique", "/suspension", "/lampadaire", "/lampe"] },
   { macro: "deco", sub: "animaux", patterns: ["/animal", "/chien", "/chat", "/niche"] },
 ];
@@ -355,8 +357,9 @@ export function classifyProduct(product: ProductRow): { macroId: string; subId: 
     return urlMatch;
   }
 
-  // 3. Mots-clés sous-catégories (ordre taxonomie : chambre enfant avant lit, etc.)
-  const keywordMatch = matchSubcategoryKeywords(combined);
+  // 3. Mots-clés sur le produit uniquement (nom + URL) — évite que « Meubles de séjour » matche « meuble »
+  const productSignals = `${nameNorm} ${urlNorm}`;
+  const keywordMatch = matchSubcategoryKeywords(productSignals);
   if (keywordMatch) {
     return keywordMatch;
   }
