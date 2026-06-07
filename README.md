@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dashboard veille mobilier — Best Mobilier
 
-## Getting Started
+Application Next.js pour visualiser les données collectées par les 5 agents de scraping :
 
-First, run the development server:
+| Concurrent | Dossier agent |
+|------------|---------------|
+| **Best Mobilier** (vous) | `bestmobilier-supabase-github` |
+| Bobochic | `Codex/.../bobochic_agent` |
+| Sweeek | `sweeek-supabase-github` |
+| Baita | `baita-supabase-github` |
+| Habitat | `habitat-supabase-github` |
+
+## 3 onglets
+
+1. **Arborescence produits** — arbre visuel par concurrent (taxonomie commune : Salon, Séjour, Chambre, Extérieur, Enfant, Animaux, Luminaire & Déco)
+2. **Nouveautés** — tableau croisé concurrents × catégories + top 10 nouveautés par hausse d'avis (produit sans avis à la première apparition)
+3. **Best sellers** — top 10 par avis totaux + top 10 par évolution d'avis depuis la première collecte
+
+## Démarrage local
 
 ```bash
+cd mobilier-veille-dashboard
+npm install
+
+# Générer les données démo depuis vos CSV locaux
+node scripts/build-demo-data.mjs
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ouvrir [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Sans Supabase configuré, le dashboard utilise `public/demo-data.json` (généré depuis les CSV des agents).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Supabase (recommandé)
 
-## Learn More
+1. Créer un projet Supabase
+2. Exécuter `sql/supabase_schema.sql`
+3. Configurer chaque agent avec les mêmes `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`
+4. Copier `.env.example` vers `.env.local` :
 
-To learn more about Next.js, take a look at the following resources:
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Relancer `npm run dev` — le dashboard bascule automatiquement sur Supabase
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Déploiement Vercel
 
-## Deploy on Vercel
+1. Pousser ce dossier sur GitHub
+2. [vercel.com](https://vercel.com) → Import Project
+3. Ajouter les variables d'environnement :
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. Deploy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Taxonomie commune
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+La classification repose sur les mots-clés du nom produit + le mapping des catégories scrapées de chaque site. Fichier : `src/lib/taxonomy.ts`.
+
+Pour affiner : ajouter des mots-clés ou des mappings `SITE_CATEGORY_MAP`.
+
+## Photos produits
+
+Les scrapers actuels ne collectent pas encore `image_url`. Le dashboard tente des heuristiques (Habitat, Baita) et affiche sinon une vignette colorée avec lien direct vers la fiche produit.
+
+Pour des photos fiables : ajouter `image_url` dans les scrapers et la table `product_snapshots`.
