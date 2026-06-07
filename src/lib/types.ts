@@ -22,6 +22,8 @@ export interface ProductRow {
   position: number | null;
   scraped_at: string;
   image_url?: string | null;
+  /** Premier nombre d'avis connu (vue dashboard_products) */
+  first_review_count?: number | null;
 }
 
 export interface DailyEventRow {

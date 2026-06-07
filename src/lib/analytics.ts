@@ -36,6 +36,14 @@ function earliestByUrl(products: ProductRow[]): Map<string, ProductRow> {
   return map;
 }
 
+function firstReviewCount(product: ProductRow, firstSnapshots: Map<string, ProductRow>): number {
+  if (product.first_review_count != null) {
+    return product.first_review_count;
+  }
+  const first = firstSnapshots.get(`${product.site}|${product.product_url}`);
+  return first?.review_count ?? 0;
+}
+
 export function buildProductTree(site: SiteId, products: ProductRow[]): ProductTreeData {
   const siteProducts = [...latestByUrl(products.filter((p) => p.site === site)).values()];
   const total = siteProducts.length;
@@ -147,7 +155,7 @@ export function buildTopNoveltiesBySite(
       const current = latest.get(key);
       if (!current) continue;
 
-      const firstReviews = firstSnap?.review_count ?? 0;
+      const firstReviews = firstReviewCount(current, first);
       if (firstReviews > 0) continue;
 
       const currentReviews = current.review_count ?? 0;
@@ -181,10 +189,8 @@ export function buildBestSellers(products: ProductRow[], limit = 10): Record<Sit
     const siteProducts = [...latest.values()].filter((p) => p.site === site);
 
     const mapped: BestSellerProduct[] = siteProducts.map((p) => {
-      const key = `${site}|${p.product_url}`;
-      const firstSnap = first.get(key);
-      const firstReviews = firstSnap?.review_count ?? 0;
       const currentReviews = p.review_count ?? 0;
+      const firstReviews = firstReviewCount(p, first);
       return {
         site,
         product_url: p.product_url,
@@ -214,10 +220,8 @@ export function buildTopReviewGrowth(products: ProductRow[], limit = 10): Record
     const siteProducts = [...latest.values()].filter((p) => p.site === site);
 
     const mapped: BestSellerProduct[] = siteProducts.map((p) => {
-      const key = `${site}|${p.product_url}`;
-      const firstSnap = first.get(key);
-      const firstReviews = firstSnap?.review_count ?? 0;
       const currentReviews = p.review_count ?? 0;
+      const firstReviews = firstReviewCount(p, first);
       return {
         site,
         product_url: p.product_url,

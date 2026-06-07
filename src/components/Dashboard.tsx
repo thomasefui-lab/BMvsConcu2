@@ -53,7 +53,7 @@ export function Dashboard({ data }: DashboardProps) {
                   {data.source === "supabase" ? "Supabase (live)" : "Données démo locales"}
                 </span>
               </p>
-              <p>{data.products.length.toLocaleString("fr-FR")} snapshots produits</p>
+              <p>{data.products.length.toLocaleString("fr-FR")} produits uniques</p>
             </div>
           </div>
         </div>
