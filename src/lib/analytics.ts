@@ -151,7 +151,6 @@ export function buildTopNoveltiesBySite(
     const candidates: NoveltyProduct[] = [];
     for (const event of newEvents) {
       const key = `${site}|${event.product_url}`;
-      const firstSnap = first.get(key);
       const current = latest.get(key);
       if (!current) continue;
 
