@@ -2,13 +2,14 @@
 
 import { useEffect } from "react";
 import type { ProductRow } from "@/lib/types";
-import { guessProductImageUrl, productPlaceholderColor } from "@/lib/images";
+import { guessProductImageUrl } from "@/lib/images";
 import {
   assignProduct,
   clearProductAssignment,
   type TaxonomyOverrides,
 } from "@/lib/classification-overrides";
 import { ProductAssignControls } from "./ProductAssignControls";
+import { ProductCard } from "./ProductCard";
 
 interface CategoryProductsModalProps {
   open: boolean;
@@ -18,74 +19,6 @@ interface CategoryProductsModalProps {
   overrides: TaxonomyOverrides;
   onOverridesChange: (overrides: TaxonomyOverrides) => void;
   onClose: () => void;
-}
-
-function ModalProductRow({
-  product,
-  index,
-  overrides,
-  onOverridesChange,
-}: {
-  product: ProductRow;
-  index: number;
-  overrides: TaxonomyOverrides;
-  onOverridesChange: (overrides: TaxonomyOverrides) => void;
-}) {
-  const name = `${index + 1}. ${product.product_name}`;
-  const imageUrl = product.image_url ?? guessProductImageUrl(product.site, product.product_url);
-  const color = productPlaceholderColor(product.site);
-
-  return (
-    <div className="flex gap-2 rounded-lg border border-slate-200 bg-white p-3">
-      <a
-        href={product.product_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex min-w-0 flex-1 gap-3 transition hover:opacity-90"
-      >
-        <div
-          className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md"
-          style={{ backgroundColor: imageUrl ? "#f8fafc" : color }}
-        >
-          {imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={imageUrl}
-              alt={name}
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
-          ) : (
-            <div className="flex h-full items-center justify-center text-lg font-bold text-white/90">
-              {name.charAt(name.indexOf(".") + 2) || "?"}
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-medium text-slate-800">{name}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            {product.price_text ? <span>{product.price_text}</span> : null}
-            <span>{product.review_count ?? 0} avis</span>
-            {(product.variant_count ?? 1) > 1 ? (
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
-                {product.variant_count} couleurs
-              </span>
-            ) : null}
-          </div>
-        </div>
-      </a>
-      <ProductAssignControls
-        product={product}
-        overrides={overrides}
-        onAssign={(macroId, subId) => {
-          onOverridesChange(assignProduct(overrides, product.site, product.product_url, macroId, subId));
-        }}
-        onClear={() => {
-          onOverridesChange(clearProductAssignment(overrides, product.site, product.product_url));
-        }}
-      />
-    </div>
-  );
 }
 
 export function CategoryProductsModal({
@@ -127,7 +60,7 @@ export function CategoryProductsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="category-modal-title"
-        className="relative flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+        className="relative flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-brand-50 px-5 py-4">
           <div>
@@ -156,14 +89,31 @@ export function CategoryProductsModal({
           {products.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-400">Aucun produit dans cette catégorie.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {products.map((product, index) => (
-                <ModalProductRow
+                <ProductCard
                   key={product.parent_key ?? product.product_url}
-                  product={product}
-                  index={index}
-                  overrides={overrides}
-                  onOverridesChange={onOverridesChange}
+                  site={product.site}
+                  name={`${index + 1}. ${product.product_name}`}
+                  url={product.product_url}
+                  imageUrl={product.image_url ?? guessProductImageUrl(product.site, product.product_url)}
+                  priceText={product.price_text}
+                  reviewCount={product.review_count ?? 0}
+                  variantCount={product.variant_count}
+                  actions={
+                    <ProductAssignControls
+                      product={product}
+                      overrides={overrides}
+                      onAssign={(macroId, subId) => {
+                        onOverridesChange(
+                          assignProduct(overrides, product.site, product.product_url, macroId, subId),
+                        );
+                      }}
+                      onClear={() => {
+                        onOverridesChange(clearProductAssignment(overrides, product.site, product.product_url));
+                      }}
+                    />
+                  }
                 />
               ))}
             </div>

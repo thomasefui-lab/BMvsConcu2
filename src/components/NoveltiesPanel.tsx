@@ -94,7 +94,7 @@ export function NoveltiesPanel({ matrix, topBySite }: NoveltiesPanelProps) {
                 </h3>
                 <p className="text-xs text-slate-500">Classées par hausse d&apos;avis</p>
               </div>
-              <div className="space-y-2 p-3">
+              <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
                 {items.length === 0 ? (
                   <p className="py-4 text-center text-sm text-slate-400">Aucune nouveauté détectée</p>
                 ) : (
