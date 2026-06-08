@@ -84,7 +84,7 @@ export const TAXONOMY: MacroCategoryDef[] = [
       { id: "parasol", label: "Parasols & voiles", keywords: ["parasol", "voile d'ombrage", "voile dombrage", "store banne", "pare-soleil"] },
       { id: "transat", label: "Transats & bains de soleil", keywords: ["transat", "bain de soleil", "hamac", "sunlounger", "chaise longue"] },
       { id: "jardin_enfant", label: "Jardin enfant", keywords: ["jardin enfant", "mobilier jardin enfant", "banc de jardin enfant"] },
-      { id: "autres_exterieur", label: "Autres extérieur", keywords: ["jardin", "terrasse", "outdoor", "pot ", "jardinière", "jardiniere", "outil de jardin", "rateau"] },
+      { id: "autres_exterieur", label: "Autres extérieur", keywords: ["trampoline", "spa ", "spa-", "jacuzzi", "piscine", "bain a remous", "gonflable", "balancelle", "bache", "jardinage", "jardin", "terrasse", "outdoor", "pot ", "jardinière", "jardiniere", "outil de jardin", "rateau"] },
     ],
   },
   {
@@ -147,6 +147,7 @@ export const TAXONOMY: MacroCategoryDef[] = [
 
 /** Règles URL (prioritaires) — chemin produit ou catégorie */
 const URL_RULES: { macro: string; sub: string; patterns: string[] }[] = [
+  { macro: "exterieur", sub: "autres_exterieur", patterns: ["/trampoline", "trampoline-", "/spa-", "/jacuzzi", "/piscine", "spa-gonflable", "bain-a-remous", "/gonflable", "/balancelle"] },
   { macro: "exterieur", sub: "pergola", patterns: ["/pergola", "pergola-", "-pergola"] },
   { macro: "exterieur", sub: "barbecue", patterns: ["/barbecue", "/plancha", "/brasero"] },
   { macro: "exterieur", sub: "parasol", patterns: ["/parasol", "/voile", "pare-soleil"] },
@@ -215,6 +216,13 @@ const SITE_CATEGORY_MAP: Record<string, { macro: string }> = {
   "le jardin": { macro: "exterieur" },
   "terrasse, jardin": { macro: "exterieur" },
   "mobilier jardin enfant": { macro: "exterieur" },
+  "loisirs": { macro: "exterieur" },
+  "loisirs et jeux": { macro: "exterieur" },
+  "jeux et loisirs": { macro: "exterieur" },
+  "sport et loisirs": { macro: "exterieur" },
+  "piscine et spa": { macro: "exterieur" },
+  "piscine": { macro: "exterieur" },
+  "jeux de plein air": { macro: "exterieur" },
   "meubles de sejour": { macro: "sejour" },
   sejour: { macro: "sejour" },
   "salle a manger": { macro: "sejour" },
@@ -307,6 +315,14 @@ function isOutdoorProduct(combined: string, collection: string | null): boolean 
     "resine tressee",
     "résine tressée",
     "textilene",
+    "trampoline",
+    "jacuzzi",
+    "bain a remous",
+    "bain à remous",
+    "piscine",
+    "gonflable",
+    "balancelle",
+    "spa gonflable",
   ];
   if (outdoorSignals.some((kw) => matchesKeyword(combined, kw))) return true;
   if (collection) {
