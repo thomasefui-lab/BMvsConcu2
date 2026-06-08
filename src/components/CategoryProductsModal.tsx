@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import type { ProductRow } from "@/lib/types";
-import { cleanProductName } from "@/lib/taxonomy";
 import { guessProductImageUrl, productPlaceholderColor } from "@/lib/images";
 import {
   assignProduct,
@@ -32,7 +31,7 @@ function ModalProductRow({
   overrides: TaxonomyOverrides;
   onOverridesChange: (overrides: TaxonomyOverrides) => void;
 }) {
-  const name = `${index + 1}. ${cleanProductName(product.product_name)}`;
+  const name = `${index + 1}. ${product.product_name}`;
   const imageUrl = product.image_url ?? guessProductImageUrl(product.site, product.product_url);
   const color = productPlaceholderColor(product.site);
 

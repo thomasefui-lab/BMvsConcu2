@@ -71,6 +71,7 @@ export interface NoveltyMatrixCell {
 
 export interface NoveltyProduct {
   site: SiteId;
+  parent_key?: string;
   product_url: string;
   product_name: string;
   category_name: string;
@@ -84,6 +85,7 @@ export interface NoveltyProduct {
 
 export interface BestSellerProduct {
   site: SiteId;
+  parent_key?: string;
   product_url: string;
   product_name: string;
   category_name: string;

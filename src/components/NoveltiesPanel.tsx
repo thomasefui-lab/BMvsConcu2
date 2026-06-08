@@ -100,7 +100,7 @@ export function NoveltiesPanel({ matrix, topBySite }: NoveltiesPanelProps) {
                 ) : (
                   items.map((p, i) => (
                     <ProductCard
-                      key={p.product_url}
+                      key={p.parent_key ?? p.product_url}
                       site={p.site}
                       name={`${i + 1}. ${p.product_name}`}
                       url={p.product_url}

@@ -2,21 +2,22 @@ import { cleanProductName } from "./taxonomy";
 import type { ProductRow, SiteId } from "./types";
 
 const COLOR_TOKENS =
-  "blanc|noir|beige|gris|grise|rouge|bordeaux|marron|rose|vert|bleu|anthracite|taupe|laque|laquee|cerise|sauge|kaki|ecru|ecru|ivoire|camel|ocre|terracotta|ardoise|naturel|moka|sable|creme|cream|anthracite|emeraude|prune|violet|orange|jaune|moutarde|navy|lin|chocolat|miel|corail|lilas|menthe|aubergine|cuivre|dore|argent|chrome";
+  "blanc|noir|beige|gris|grise|rouge|bordeaux|marron|rose|vert|bleu|anthracite|taupe|laque|laquee|cerise|sauge|kaki|ecru|ivoire|camel|ocre|terracotta|ardoise|naturel|moka|sable|creme|cream|emeraude|prune|violet|orange|jaune|moutarde|navy|lin|chocolat|miel|corail|lilas|menthe|aubergine|cuivre|dore|argent|chrome|ebene|ebène|noyer|chene|chêne|walnut|oak|walnut";
 
 const COLOR_SEGMENT_RE = new RegExp(
   `\\s*-\\s*(${COLOR_TOKENS})(\\s+[^-]+)?(?=\\s*-|$)`,
   "gi",
 );
 
+const TRAILING_COLOR_RE = new RegExp(`\\s+(${COLOR_TOKENS})\\s*$`, "i");
 const URL_COLOR_RE = new RegExp(`-(${COLOR_TOKENS})(?=-|$)`, "gi");
 
 const MATERIAL_PATTERNS = [
-  /\ben\s+(velours(?:\s+cotele)?(?:\s+grosses\s+cotes)?|tissu(?:\s+texture)?|fausse\s+fourrure(?:\s+cotele)?|jute|lin|cuir|bois|metal|acier|resine(?:\s+tressee)?|chenille|bouclette|coton|polyester|marbre|verre)\b/i,
-  /\b(velours|coton|polyester|chenille|jute|lin|cuir|resine tressee|resine tressee|tissu|bouclette|marbre|verre|metal|acier|bois)(?:\s+et\s+(velours|coton|polyester|chenille|jute|lin))?/i,
+  /\ben\s+(velours(?:\s+cotele)?(?:\s+grosses\s+cotes)?|tissu(?:\s+texture)?|fausse\s+fourrure(?:\s+cotele)?|jute|lin|cuir|bois|metal|acier|resine(?:\s+tressee)?|chenille|bouclette|coton|polyester|marbre|verre|cotele|capitonne)\b/i,
+  /\b(velours|coton|polyester|chenille|jute|lin|cuir|resine tressee|tissu|bouclette|marbre|verre|metal|acier|bois)(?:\s+et\s+(velours|coton|polyester|chenille|jute|lin))?/i,
 ];
 
-interface VariantProduct {
+export interface VariantProduct {
   site: SiteId;
   product_name: string;
   collection_name?: string | null;
@@ -25,6 +26,16 @@ interface VariantProduct {
   price_cents?: number | null;
   price_text?: string | null;
   product_url?: string;
+}
+
+export interface ParentProductGroup<T extends VariantProduct = VariantProduct> {
+  parentKey: string;
+  representative: T;
+  variants: T[];
+  displayName: string;
+  priceRangeText: string | null;
+  reviewCount: number;
+  variantCount: number;
 }
 
 function normalize(text: string): string {
@@ -45,17 +56,15 @@ function stripUrlVariantHints(url: string): string {
     slug = slug.replace(/#/g, " ");
     slug = slug.replace(URL_COLOR_RE, " ");
     slug = slug.replace(/couleur-[a-z]+/gi, " ");
+    slug = slug.replace(/-taille-[a-z0-9]+/gi, " ");
     return normalize(slug.replace(/-/g, " "));
   } catch {
     return "";
   }
 }
 
-/**
- * Réduit un libellé produit à sa référence parent (hors couleur, bundle).
- * Les dimensions (cm, places) sont conservées — ce sont des vraies variantes.
- */
-export function extractProductStem(name: string, productUrl?: string): string {
+/** Stem nom seul (sans URL) — utilisé pour la clé parent et l'affichage. */
+export function extractNameStem(name: string): string {
   let stem = cleanProductName(name);
 
   stem = stem.replace(/^édition limitée\s*-\s*/i, "");
@@ -73,21 +82,30 @@ export function extractProductStem(name: string, productUrl?: string): string {
 
   let normalized = normalize(stem);
   normalized = normalized.replace(COLOR_SEGMENT_RE, " ");
+  normalized = normalized.replace(TRAILING_COLOR_RE, "");
   normalized = normalized.replace(/\s*-\s*$/g, "");
   normalized = normalized.replace(/\s+(palace|triomphe|imperial|flash)\s*$/i, "");
-  normalized = normalized.replace(/\s+/g, " ").trim();
-
-  if (productUrl) {
-    const urlStem = stripUrlVariantHints(productUrl);
-    if (urlStem) {
-      normalized = `${normalized} ${urlStem}`.replace(/\s+/g, " ").trim();
-    }
-  }
-
-  return normalized;
+  return normalized.replace(/\s+/g, " ").trim();
 }
 
-/** Extrait la matière du libellé (ex. « en velours côtelé », « polyester et coton »). */
+/** @deprecated Utiliser extractNameStem */
+export function extractProductStem(name: string, productUrl?: string): string {
+  const stem = extractNameStem(name);
+  if (!productUrl) return stem;
+  const urlStem = stripUrlVariantHints(productUrl);
+  if (!urlStem) return stem;
+  return `${stem} ${urlStem}`.replace(/\s+/g, " ").trim();
+}
+
+/** Libellé parent affiché (sans couleur). */
+export function formatDisplayParentName(name: string): string {
+  let display = cleanProductName(name);
+  display = display.replace(COLOR_SEGMENT_RE, "");
+  display = display.replace(TRAILING_COLOR_RE, "");
+  display = display.replace(/\s*-\s*$/g, "").replace(/\s+/g, " ").trim();
+  return display;
+}
+
 export function extractMaterial(name: string): string {
   const cleaned = cleanProductName(name);
   for (const pattern of MATERIAL_PATTERNS) {
@@ -99,44 +117,93 @@ export function extractMaterial(name: string): string {
   return "";
 }
 
-export function normalizePrice(priceCents: number | null | undefined, priceText: string | null | undefined): string {
-  if (priceCents != null && priceCents > 0) {
-    return String(priceCents);
+export function priceCentsFromProduct(product: VariantProduct): number | null {
+  if (product.price_cents != null && product.price_cents > 0) {
+    return product.price_cents;
   }
-  if (!priceText) return "";
-  const digits = priceText.replace(/[^\d]/g, "");
-  return digits || "";
+  if (!product.price_text) return null;
+  const match = product.price_text.match(/(\d[\d\s]*[.,]\d{2}|\d[\d\s]*)/);
+  if (!match) return null;
+  const normalized = match[1].replace(/\s/g, "").replace(",", ".");
+  const value = Number.parseFloat(normalized);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value * 100);
+}
+
+function formatEuros(cents: number): string {
+  return `${(cents / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+}
+
+export function formatPriceRangeText(variants: VariantProduct[]): string | null {
+  const cents = variants
+    .map(priceCentsFromProduct)
+    .filter((value): value is number => value != null && value > 0);
+  if (!cents.length) {
+    const texts = [...new Set(variants.map((v) => v.price_text).filter(Boolean))] as string[];
+    if (texts.length === 1) return texts[0];
+    if (texts.length > 1) return `${texts[0]} – ${texts[texts.length - 1]}`;
+    return null;
+  }
+  const min = Math.min(...cents);
+  const max = Math.max(...cents);
+  if (min === max) return formatEuros(min);
+  return `${formatEuros(min)} – ${formatEuros(max)}`;
 }
 
 /**
- * Clé de référence parent : même nom (hors couleur), même prix, même matière → 1 produit.
+ * Clé parent : même nom (hors couleur) + matière (+ collection si connue).
+ * Le prix est ignoré — les déclinaisons couleur à prix différent = 1 référence.
  */
 export function parentReferenceKey(product: VariantProduct): string {
-  const stem = extractProductStem(product.product_name, product.product_url);
+  const stem = extractNameStem(product.product_name);
   const material = extractMaterial(product.product_name);
-  const price = normalizePrice(product.price_cents, product.price_text);
-  return `${product.site}|${stem}|${material}|${price}`;
+  const collection = product.collection_name?.trim();
+
+  if (collection) {
+    return `${product.site}|col:${normalize(collection)}|${stem}|${material}`;
+  }
+
+  if (stem.length < 8 && product.product_url) {
+    const urlStem = stripUrlVariantHints(product.product_url);
+    return `${product.site}|${stem}|${urlStem}|${material}`;
+  }
+
+  return `${product.site}|${stem}|${material}`;
 }
 
-/**
- * Ne conserve qu'une référence parent par groupe de déclinaisons couleur.
- * Garde le représentant avec le plus d'avis.
- */
-export function dedupeToParentReferences<T extends VariantProduct>(items: T[]): T[] {
-  const best = new Map<string, T>();
+export function collapseToParentGroups<T extends VariantProduct>(items: T[]): ParentProductGroup<T>[] {
+  const groups = new Map<string, T[]>();
 
   for (const item of items) {
     const key = parentReferenceKey(item);
-    const existing = best.get(key);
-    if (!existing || item.review_count > existing.review_count) {
-      best.set(key, item);
-    }
+    const bucket = groups.get(key) ?? [];
+    bucket.push(item);
+    groups.set(key, bucket);
   }
 
-  return [...best.values()];
+  return [...groups.entries()].map(([parentKey, variants]) => {
+    const sorted = [...variants].sort(
+      (a, b) => (b.review_count ?? 0) - (a.review_count ?? 0) || (b.price_cents ?? 0) - (a.price_cents ?? 0),
+    );
+    const representative = sorted[0];
+    const reviewCount = Math.max(...variants.map((v) => v.review_count ?? 0));
+
+    return {
+      parentKey,
+      representative,
+      variants,
+      displayName: formatDisplayParentName(representative.product_name),
+      priceRangeText: formatPriceRangeText(variants),
+      reviewCount,
+      variantCount: variants.length,
+    };
+  });
 }
 
-/** Garde un seul représentant par famille de variantes dans un top N déjà trié. */
+export function dedupeToParentReferences<T extends VariantProduct>(items: T[]): T[] {
+  return collapseToParentGroups(items).map((group) => group.representative);
+}
+
 export function dedupeVariants<T extends VariantProduct>(items: T[], limit: number): T[] {
   const seen = new Set<string>();
   const result: T[] = [];
@@ -152,8 +219,7 @@ export function dedupeVariants<T extends VariantProduct>(items: T[], limit: numb
   return result;
 }
 
-/** Dernier état par URL puis réduction aux références parent. */
-export function latestParentProducts(products: ProductRow[], site?: SiteId): ProductRow[] {
+function latestUrlProducts(products: ProductRow[], site?: SiteId): ProductRow[] {
   const map = new Map<string, ProductRow>();
   for (const p of products) {
     if (site && p.site !== site) continue;
@@ -163,8 +229,39 @@ export function latestParentProducts(products: ProductRow[], site?: SiteId): Pro
       map.set(key, p);
     }
   }
-  return dedupeToParentReferences(
-    [...map.values()].map((p) => ({
+  return [...map.values()];
+}
+
+/** Produit parent enrichi pour l'affichage (nom sans couleur, fourchette de prix). */
+export function toDisplayParentRow(group: ParentProductGroup<VariantProduct & ProductRow>): ProductRow {
+  const base = group.representative;
+  return {
+    ...base,
+    product_name: group.displayName,
+    price_text: group.priceRangeText ?? base.price_text,
+    review_count: group.reviewCount,
+  };
+}
+
+/** Dernier état par URL puis 1 ligne par référence parent. */
+export function latestParentProducts(products: ProductRow[], site?: SiteId): ProductRow[] {
+  const latest = latestUrlProducts(products, site);
+  const groups = collapseToParentGroups(
+    latest.map((p) => ({
+      ...p,
+      review_count: p.review_count ?? 0,
+    })),
+  );
+  return groups.map(toDisplayParentRow);
+}
+
+export function latestParentGroups(
+  products: ProductRow[],
+  site?: SiteId,
+): ParentProductGroup<VariantProduct & ProductRow>[] {
+  const latest = latestUrlProducts(products, site);
+  return collapseToParentGroups(
+    latest.map((p) => ({
       ...p,
       review_count: p.review_count ?? 0,
     })),
