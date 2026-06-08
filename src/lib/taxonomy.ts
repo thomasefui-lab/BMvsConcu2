@@ -385,11 +385,13 @@ export function classifyProduct(product: ProductRow): { macroId: string; subId: 
   // 2. Règles URL produit / catégorie
   const urlMatch = matchUrlRules(product.product_url) ?? matchUrlRules(product.category_url);
   if (urlMatch) {
-    // Si la règle générique /cuisine a matchée, affiner par le nom du produit
-    if (urlMatch.macroId === "cuisine" && urlMatch.subId === "meuble_cuisine") {
-      if (["chaise", "tabouret"].some((kw) => matchesKeyword(nameNorm, kw))) {
+    // Si la règle URL a matché table_manger ou cuisine, s'assurer que les chaises ne s'y retrouvent pas
+    if (["chaise", "tabouret"].some((kw) => matchesKeyword(nameNorm, kw))) {
+      if (urlMatch.subId === "table_manger" || urlMatch.subId === "meuble_cuisine") {
         return { macroId: "sejour", subId: "chaises" };
       }
+    }
+    if (urlMatch.macroId === "cuisine" && urlMatch.subId === "meuble_cuisine") {
       if (["table cuisine", "table de cuisine"].some((kw) => matchesKeyword(nameNorm, kw))) {
         return { macroId: "cuisine", subId: "table_cuisine" };
       }
