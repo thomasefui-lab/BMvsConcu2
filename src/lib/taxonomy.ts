@@ -106,7 +106,6 @@ export const TAXONOMY: MacroCategoryDef[] = [
     categoryKeywords: ["cuisine", "kitchen"],
     subcategories: [
       { id: "meuble_cuisine", label: "Meubles cuisine", keywords: ["meuble cuisine", "meuble de cuisine", "buffet cuisine", "ilot", "îlot", "plan de travail", "armoire cuisine"] },
-      { id: "chaise_cuisine", label: "Chaises & Tabourets", keywords: ["chaise cuisine", "chaise de cuisine", "tabouret cuisine", "tabouret de bar", "tabouret bar", "chaise de bar", "chaise bar", "chaise haute de bar", "chaise haute bar", "chaise haute cuisine", "tabouret haut", "tabouret de comptoir"] },
       { id: "table_cuisine", label: "Tables cuisine", keywords: ["table cuisine", "table de cuisine", "table a manger cuisine", "table ronde cuisine", "table extensible cuisine"] },
       { id: "rangement_cuisine", label: "Rangements cuisine", keywords: ["rangement cuisine", "etagere cuisine", "étagère cuisine", "placard cuisine"] },
     ],
@@ -172,8 +171,8 @@ const URL_RULES: { macro: string; sub: string; patterns: string[] }[] = [
   { macro: "exterieur", sub: "jardin_enfant", patterns: ["jardin-enfant", "mobilier-jardin-enfant"] },
   { macro: "chambre", sub: "chambre_enfant", patterns: ["/enfant", "chambre-enfant", "chambre-complete-enfant", "armoire-pour-enfant", "lit-enfant"] },
   {
-    macro: "cuisine",
-    sub: "chaise_cuisine",
+    macro: "sejour",
+    sub: "chaises",
     patterns: [
       "chaise-cuisine", "chaise-de-cuisine",
       "tabouret-cuisine",
@@ -373,7 +372,7 @@ export function classifyProduct(product: ProductRow): { macroId: string; subId: 
     // Si la règle générique /cuisine a matchée, affiner par le nom du produit
     if (urlMatch.macroId === "cuisine" && urlMatch.subId === "meuble_cuisine") {
       if (["chaise", "tabouret"].some((kw) => matchesKeyword(nameNorm, kw))) {
-        return { macroId: "cuisine", subId: "chaise_cuisine" };
+        return { macroId: "sejour", subId: "chaises" };
       }
       if (["table cuisine", "table de cuisine"].some((kw) => matchesKeyword(nameNorm, kw))) {
         return { macroId: "cuisine", subId: "table_cuisine" };
