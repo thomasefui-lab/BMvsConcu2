@@ -35,7 +35,7 @@ export function ProductCard({
   const showImage = imageUrl && !imageFailed;
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:border-brand-400 hover:shadow-md">
+    <div className="group flex flex-col rounded-lg border border-slate-200 bg-white transition hover:border-brand-400 hover:shadow-md">
       <a
         href={url}
         target="_blank"
@@ -43,7 +43,7 @@ export function ProductCard({
         className="flex flex-1 flex-col"
       >
         <div
-          className="relative aspect-[4/3] w-full overflow-hidden"
+          className="relative aspect-[4/3] w-full overflow-hidden rounded-t-lg"
           style={{ backgroundColor: showImage ? "#f8fafc" : color }}
         >
           {showImage ? (
