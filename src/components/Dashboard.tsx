@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DashboardData } from "@/lib/types";
 import {
   buildAllProductTrees,
@@ -14,6 +14,7 @@ import { loadOverrides, type TaxonomyOverrides } from "@/lib/classification-over
 import { ProductTree } from "./ProductTree";
 import { NoveltiesPanel } from "./NoveltiesPanel";
 import { BestSellersPanel } from "./BestSellersPanel";
+import { TreePrintView } from "./TreePrintView";
 
 const TABS = [
   { id: "tree", label: "Arborescence produits" },
@@ -49,16 +50,20 @@ export function Dashboard({ data }: DashboardProps) {
   const bestSellers = buildBestSellers(data.products);
   const topGrowth = buildTopReviewGrowth(data.products);
 
+  // Refs sur chaque arbre de print
+  const printRefs = useRef<(HTMLDivElement | null)[]>([]);
+
   const [exporting, setExporting] = useState(false);
   const handleExportPDF = useCallback(async () => {
     setExporting(true);
     try {
-      const { exportPDF } = await import("@/lib/export-pdf");
-      exportPDF(trees, bestSellers, topGrowth);
+      const elements = printRefs.current.filter((el): el is HTMLDivElement => el !== null);
+      const { exportTreesPDF } = await import("@/lib/export-pdf");
+      await exportTreesPDF(elements);
     } finally {
       setExporting(false);
     }
-  }, [trees, bestSellers, topGrowth]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -109,6 +114,29 @@ export function Dashboard({ data }: DashboardProps) {
           </div>
         </div>
       </header>
+
+      {/* Conteneurs hors-écran pour la capture PDF — 1 arbre par acteur */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          left: "-9999px",
+          top: 0,
+          width: "1122px",
+          pointerEvents: "none",
+        }}
+      >
+        {trees.map((tree, i) => (
+          <TreePrintView
+            key={tree.site}
+            ref={(el) => {
+              printRefs.current[i] = el;
+            }}
+            tree={tree}
+            overrides={overrides}
+          />
+        ))}
+      </div>
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <nav className="mb-6 flex flex-wrap gap-2">
