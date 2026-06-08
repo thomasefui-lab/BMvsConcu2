@@ -63,9 +63,14 @@ function ModalProductRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-medium text-slate-800">{name}</p>
-          <div className="mt-1 flex flex-wrap gap-2 text-xs text-slate-500">
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             {product.price_text ? <span>{product.price_text}</span> : null}
             <span>{product.review_count ?? 0} avis</span>
+            {(product.variant_count ?? 1) > 1 ? (
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                {product.variant_count} couleurs
+              </span>
+            ) : null}
           </div>
         </div>
       </a>
@@ -154,7 +159,7 @@ export function CategoryProductsModal({
             <div className="space-y-2">
               {products.map((product, index) => (
                 <ModalProductRow
-                  key={product.product_url}
+                  key={product.parent_key ?? product.product_url}
                   product={product}
                   index={index}
                   overrides={overrides}

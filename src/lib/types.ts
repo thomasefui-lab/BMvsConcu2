@@ -24,6 +24,10 @@ export interface ProductRow {
   image_url?: string | null;
   /** Premier nombre d'avis connu (vue dashboard_products) */
   first_review_count?: number | null;
+  /** Clé de regroupement parent (nom hors couleur + matière) */
+  parent_key?: string;
+  /** Nombre de déclinaisons couleur regroupées sous cette ligne */
+  variant_count?: number;
 }
 
 export interface DailyEventRow {

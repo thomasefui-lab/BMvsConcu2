@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "build:demo": "node scripts/build-demo-data.mjs",
-    "audit:taxonomy": "npx tsx scripts/audit-taxonomy-runner.ts"
+    "audit:taxonomy": "npx tsx scripts/audit-taxonomy-runner.ts",
+    "test:dedupe": "npx tsx scripts/test-dedupe-habitat.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",

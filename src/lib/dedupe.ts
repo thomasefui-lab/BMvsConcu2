@@ -240,6 +240,8 @@ export function toDisplayParentRow(group: ParentProductGroup<VariantProduct & Pr
     product_name: group.displayName,
     price_text: group.priceRangeText ?? base.price_text,
     review_count: group.reviewCount,
+    parent_key: group.parentKey,
+    variant_count: group.variantCount,
   };
 }
 
