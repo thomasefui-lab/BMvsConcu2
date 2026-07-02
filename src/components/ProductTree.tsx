@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { getProductsByCategory } from "@/lib/analytics";
-import type { ProductRow, ProductTreeData, SiteId } from "@/lib/types";
+import { useEffect, useMemo, useState } from "react";
+import { buildProductTree, getProductsByCategory } from "@/lib/analytics";
+import type { ProductRow, ScrapeDay, SiteId } from "@/lib/types";
+import { COMPETITORS } from "@/lib/types";
 import { formatOfferUpdateDateShort } from "@/lib/dates";
 import {
   countOverrides,
@@ -13,9 +14,9 @@ import {
   type TaxonomyOverrides,
 } from "@/lib/classification-overrides";
 import { CategoryProductsModal } from "./CategoryProductsModal";
+import { LoadingSpinner } from "./ui/LoadingSpinner";
 
 interface ProductTreeProps {
-  trees: ProductTreeData[];
   products: ProductRow[];
   selectedSite: string;
   overrides: TaxonomyOverrides;
@@ -51,7 +52,6 @@ function CountSplit({
 }
 
 export function ProductTree({
-  trees,
   products,
   selectedSite,
   overrides,
@@ -62,18 +62,78 @@ export function ProductTree({
   const [modal, setModal] = useState<ModalState | null>(null);
   const [draggingSubId, setDraggingSubId] = useState<string | null>(null);
   const [dropTargetMacroId, setDropTargetMacroId] = useState<string | null>(null);
+  const [scrapeDays, setScrapeDays] = useState<ScrapeDay[]>([]);
+  const [dayBySite, setDayBySite] = useState<Partial<Record<SiteId, string>>>({});
+  const [historicalProducts, setHistoricalProducts] = useState<ProductRow[] | null>(null);
+  const [loadingSnapshot, setLoadingSnapshot] = useState(false);
 
-  const tree = trees.find((t) => t.site === selectedSite) ?? trees[0];
+  const site = (selectedSite as SiteId) || "bestmobilier";
+
+  useEffect(() => {
+    fetch("/api/scrape-days")
+      .then((r) => r.json())
+      .then((body: { days: ScrapeDay[] }) => setScrapeDays(body.days ?? []))
+      .catch(() => setScrapeDays([]));
+  }, []);
+
+  const siteDays = useMemo(
+    () =>
+      [...new Set(scrapeDays.filter((d) => d.site === site).map((d) => d.scrape_day))].sort(),
+    [scrapeDays, site],
+  );
+
+  const latestDay = siteDays[siteDays.length - 1] ?? "";
+  const selectedDay = dayBySite[site] ?? latestDay;
+  const isLatest = !selectedDay || !latestDay || selectedDay === latestDay;
+  const isInteractive = isLatest;
+
+  useEffect(() => {
+    if (!site || !selectedDay || isLatest) {
+      setHistoricalProducts(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSnapshot(true);
+    fetch(`/api/snapshot-products?site=${site}&day=${selectedDay}`)
+      .then((r) => r.json())
+      .then((body: { products: ProductRow[] }) => {
+        if (!cancelled) setHistoricalProducts(body.products ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoricalProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSnapshot(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [site, selectedDay, isLatest]);
+
+  const activeProducts = useMemo(() => {
+    if (!isLatest && historicalProducts) return historicalProducts;
+    return products.filter((p) => p.site === site);
+  }, [isLatest, historicalProducts, products, site]);
+
+  const tree = useMemo(
+    () => (activeProducts.length ? buildProductTree(site, activeProducts, overrides) : null),
+    [activeProducts, site, overrides],
+  );
+
+  const latestTrees = useMemo(
+    () => COMPETITORS.map((c) => buildProductTree(c.id, products.filter((p) => p.site === c.id), overrides)),
+    [products, overrides],
+  );
 
   const modalProducts = useMemo(() => {
-    if (!modal || !tree) return [];
+    if (!modal || !tree || !isInteractive) return [];
     return getProductsByCategory(
-      tree.site as SiteId,
-      products,
+      site,
+      products.filter((p) => p.site === site),
       { macroId: modal.macroId, subId: modal.subId },
       overrides,
     );
-  }, [modal, products, tree, overrides]);
+  }, [modal, products, tree, overrides, site, isInteractive]);
 
   const handleOverridesChange = (next: TaxonomyOverrides) => {
     onOverridesChange(next);
@@ -87,6 +147,14 @@ export function ProductTree({
     setDropTargetMacroId(null);
   };
 
+  if (!tree && loadingSnapshot) {
+    return (
+      <div className="flex justify-center py-20">
+        <LoadingSpinner label="Chargement de l'arborescence à cette date…" />
+      </div>
+    );
+  }
+
   if (!tree) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">
@@ -96,10 +164,12 @@ export function ProductTree({
   }
 
   const openCategory = (macroId: string, macroLabel: string) => {
+    if (!isInteractive) return;
     setModal({ macroId, title: macroLabel });
   };
 
   const openSubcategory = (macroId: string, subId: string, macroLabel: string, subLabel: string) => {
+    if (!isInteractive) return;
     setModal({ macroId, subId, title: `${macroLabel} — ${subLabel}` });
   };
 
@@ -110,7 +180,7 @@ export function ProductTree({
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            {trees.map((t) => (
+            {latestTrees.map((t) => (
               <button
                 key={t.site}
                 onClick={() => onSelectSite(t.site)}
@@ -132,7 +202,7 @@ export function ProductTree({
               </button>
             ))}
           </div>
-          {overrideCount > 0 ? (
+          {isInteractive && overrideCount > 0 ? (
             <button
               type="button"
               onClick={() => handleOverridesChange(resetAllOverrides())}
@@ -143,10 +213,43 @@ export function ProductTree({
           ) : null}
         </div>
 
+        {siteDays.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <label className="text-xs font-medium text-slate-600">
+              Date de scrape — {tree.label}
+              <select
+                value={selectedDay}
+                onChange={(e) =>
+                  setDayBySite((prev) => ({ ...prev, [site]: e.target.value }))
+                }
+                className="ml-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+              >
+                {siteDays.map((d) => (
+                  <option key={d} value={d}>
+                    {formatOfferUpdateDateShort(`${d}T12:00:00.000Z`)}
+                    {d === latestDay ? " (dernier)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!isInteractive ? (
+              <span className="text-xs text-amber-700">
+                Vue historique — structure uniquement (pas de détail produit).
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+
         <p className="text-xs text-slate-500">
-          Cliquez pour voir les produits.{" "}
-          <strong>Maintenez et glissez</strong> une sous-catégorie (poignée ⋮⋮) vers une autre
-          branche pour la déplacer. Les modifications sont enregistrées automatiquement.
+          {isInteractive ? (
+            <>
+              Cliquez pour voir les produits.{" "}
+              <strong>Maintenez et glissez</strong> une sous-catégorie (poignée ⋮⋮) vers une autre
+              branche pour la déplacer.
+            </>
+          ) : (
+            <>Arborescence figée au {formatOfferUpdateDateShort(`${selectedDay}T12:00:00.000Z`)}.</>
+          )}
         </p>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-6">
@@ -185,7 +288,7 @@ export function ProductTree({
                     dropTargetMacroId === cat.id ? "bg-brand-100 ring-2 ring-brand-400" : ""
                   }`}
                   onDragOver={(e) => {
-                    if (!draggingSubId) return;
+                    if (!isInteractive || !draggingSubId) return;
                     e.preventDefault();
                     setDropTargetMacroId(cat.id);
                   }}
@@ -193,6 +296,7 @@ export function ProductTree({
                     if (dropTargetMacroId === cat.id) setDropTargetMacroId(null);
                   }}
                   onDrop={(e) => {
+                    if (!isInteractive) return;
                     e.preventDefault();
                     const subId = e.dataTransfer.getData(DRAG_MIME);
                     if (subId) handleDropSubcategory(cat.id, subId);
@@ -200,14 +304,20 @@ export function ProductTree({
                 >
                   <div className="absolute top-0 h-4 w-px bg-brand-400" />
 
-                  <button
-                    type="button"
-                    onClick={() => openCategory(cat.id, cat.label)}
-                    className="w-full rounded border-2 border-brand-600 bg-white px-2 py-2 text-center text-xs font-semibold text-brand-900 transition hover:border-brand-800 hover:bg-brand-50 hover:shadow-sm"
-                    title={`Voir les ${cat.count} produits`}
-                  >
-                    {cat.label}
-                  </button>
+                  {isInteractive ? (
+                    <button
+                      type="button"
+                      onClick={() => openCategory(cat.id, cat.label)}
+                      className="w-full rounded border-2 border-brand-600 bg-white px-2 py-2 text-center text-xs font-semibold text-brand-900 transition hover:border-brand-800 hover:bg-brand-50 hover:shadow-sm"
+                      title={`Voir les ${cat.count} produits`}
+                    >
+                      {cat.label}
+                    </button>
+                  ) : (
+                    <div className="w-full rounded border-2 border-slate-400 bg-slate-50 px-2 py-2 text-center text-xs font-semibold text-slate-700">
+                      {cat.label}
+                    </div>
+                  )}
 
                   <div className="mt-2 w-full px-1">
                     <div className="relative h-3 overflow-hidden rounded-sm bg-slate-200">
@@ -221,15 +331,22 @@ export function ProductTree({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => openCategory(cat.id, cat.label)}
-                    className="mt-1 w-full rounded border border-brand-300 bg-white px-2 py-1 text-center text-[11px] font-medium transition hover:border-brand-500 hover:bg-brand-50"
-                    title="Voir les produits"
-                  >
-                    <CountSplit products={cat.count} collections={cat.collectionCount} />
-                    <span className="block text-[9px] font-normal text-slate-400">prod. | coll.</span>
-                  </button>
+                  {isInteractive ? (
+                    <button
+                      type="button"
+                      onClick={() => openCategory(cat.id, cat.label)}
+                      className="mt-1 w-full rounded border border-brand-300 bg-white px-2 py-1 text-center text-[11px] font-medium transition hover:border-brand-500 hover:bg-brand-50"
+                      title="Voir les produits"
+                    >
+                      <CountSplit products={cat.count} collections={cat.collectionCount} />
+                      <span className="block text-[9px] font-normal text-slate-400">prod. | coll.</span>
+                    </button>
+                  ) : (
+                    <div className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-2 py-1 text-center text-[11px] font-medium">
+                      <CountSplit products={cat.count} collections={cat.collectionCount} />
+                      <span className="block text-[9px] font-normal text-slate-400">prod. | coll.</span>
+                    </div>
+                  )}
 
                   <div className="mt-2 h-4 w-px bg-brand-300" />
 
@@ -244,44 +361,57 @@ export function ProductTree({
                           key={sub.id}
                           className={`flex w-full gap-0.5 text-[10px] ${isDragging ? "opacity-40" : ""}`}
                         >
-                          <div
-                            draggable
-                            onDragStart={(e) => {
-                              e.dataTransfer.setData(DRAG_MIME, sub.id);
-                              e.dataTransfer.effectAllowed = "move";
-                              setDraggingSubId(sub.id);
-                            }}
-                            onDragEnd={() => {
-                              setDraggingSubId(null);
-                              setDropTargetMacroId(null);
-                            }}
-                            className="flex cursor-grab items-center rounded border border-slate-300 bg-slate-100 px-0.5 text-slate-400 active:cursor-grabbing hover:bg-slate-200"
-                            title="Glisser vers une autre catégorie"
-                          >
-                            ⋮⋮
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => openSubcategory(cat.id, sub.id, cat.label, sub.label)}
-                            className="flex min-w-0 flex-1 gap-1 text-left transition hover:opacity-80"
-                            title={`Voir les ${sub.count} produits`}
-                          >
+                          {isInteractive ? (
                             <div
-                              className={`flex-1 rounded border px-1 py-1 text-center leading-tight ${
-                                isMoved
-                                  ? "border-amber-300 bg-amber-50"
-                                  : "border-slate-300 bg-white hover:border-brand-400 hover:bg-brand-50"
-                              }`}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData(DRAG_MIME, sub.id);
+                                e.dataTransfer.effectAllowed = "move";
+                                setDraggingSubId(sub.id);
+                              }}
+                              onDragEnd={() => {
+                                setDraggingSubId(null);
+                                setDropTargetMacroId(null);
+                              }}
+                              className="flex cursor-grab items-center rounded border border-slate-300 bg-slate-100 px-0.5 text-slate-400 active:cursor-grabbing hover:bg-slate-200"
+                              title="Glisser vers une autre catégorie"
                             >
-                              {sub.label}
-                              {isMoved && defaultMacro !== cat.id ? (
-                                <span className="mt-0.5 block text-[8px] text-amber-600">déplacé</span>
-                              ) : null}
+                              ⋮⋮
                             </div>
-                            <div className="min-w-[3.25rem] rounded border border-slate-300 bg-white px-1 py-1 text-center text-[9px] font-semibold leading-tight hover:border-brand-400 hover:bg-brand-50">
-                              <CountSplit products={sub.count} collections={sub.collectionCount} />
+                          ) : null}
+                          {isInteractive ? (
+                            <button
+                              type="button"
+                              onClick={() => openSubcategory(cat.id, sub.id, cat.label, sub.label)}
+                              className="flex min-w-0 flex-1 gap-1 text-left transition hover:opacity-80"
+                              title={`Voir les ${sub.count} produits`}
+                            >
+                              <div
+                                className={`flex-1 rounded border px-1 py-1 text-center leading-tight ${
+                                  isMoved
+                                    ? "border-amber-300 bg-amber-50"
+                                    : "border-slate-300 bg-white hover:border-brand-400 hover:bg-brand-50"
+                                }`}
+                              >
+                                {sub.label}
+                                {isMoved && defaultMacro !== cat.id ? (
+                                  <span className="mt-0.5 block text-[8px] text-amber-600">déplacé</span>
+                                ) : null}
+                              </div>
+                              <div className="min-w-[3.25rem] rounded border border-slate-300 bg-white px-1 py-1 text-center text-[9px] font-semibold leading-tight hover:border-brand-400 hover:bg-brand-50">
+                                <CountSplit products={sub.count} collections={sub.collectionCount} />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="flex min-w-0 flex-1 gap-1 text-[10px]">
+                              <div className="flex-1 rounded border border-slate-300 bg-slate-50 px-1 py-1 text-center leading-tight">
+                                {sub.label}
+                              </div>
+                              <div className="min-w-[3.25rem] rounded border border-slate-300 bg-slate-50 px-1 py-1 text-center text-[9px] font-semibold leading-tight">
+                                <CountSplit products={sub.count} collections={sub.collectionCount} />
+                              </div>
                             </div>
-                          </button>
+                          )}
                         </div>
                       );
                     })}
@@ -293,15 +423,17 @@ export function ProductTree({
         </div>
       </div>
 
-      <CategoryProductsModal
-        open={modal !== null}
-        title={modal?.title ?? ""}
-        siteLabel={tree.label}
-        products={modalProducts}
-        overrides={overrides}
-        onOverridesChange={handleOverridesChange}
-        onClose={() => setModal(null)}
-      />
+      {isInteractive ? (
+        <CategoryProductsModal
+          open={modal !== null}
+          title={modal?.title ?? ""}
+          siteLabel={tree.label}
+          products={modalProducts}
+          overrides={overrides}
+          onOverridesChange={handleOverridesChange}
+          onClose={() => setModal(null)}
+        />
+      ) : null}
     </>
   );
 }

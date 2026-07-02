@@ -68,23 +68,36 @@ function getSiteBaselineDay(products: ProductRow[], site: SiteId): string | null
 }
 
 /**
- * Vrai nouveau = apparu après le jour de référence ET sans avis à la première collecte.
+ * Vrai nouveau = apparu après la date de référence ET sans avis à la première collecte.
+ * Si `sinceDay` est fourni, la référence = ce jour (inclus) ; sinon = 1er scrape du site.
  */
-function collectTrueNoveltyKeys(products: ProductRow[]): Set<string> {
+function collectNoveltyKeys(
+  products: ProductRow[],
+  options?: { sinceDay?: string },
+): Set<string> {
   const first = earliestByUrl(products);
   const keys = new Set<string>();
 
   for (const [key, firstSnap] of first) {
-    const baselineDay = getSiteBaselineDay(products, firstSnap.site);
-    const firstDay = firstSnap.scraped_at.slice(0, 10);
+    const firstDay = (firstSnap.first_scraped_at ?? firstSnap.scraped_at).slice(0, 10);
 
-    if (baselineDay && firstDay <= baselineDay) continue;
+    if (options?.sinceDay) {
+      if (firstDay <= options.sinceDay) continue;
+    } else {
+      const baselineDay = getSiteBaselineDay(products, firstSnap.site);
+      if (baselineDay && firstDay <= baselineDay) continue;
+    }
+
     if (firstReviewCount(firstSnap, first) > 0) continue;
-
     keys.add(key);
   }
 
   return keys;
+}
+
+/** @deprecated alias interne */
+function collectTrueNoveltyKeys(products: ProductRow[]): Set<string> {
+  return collectNoveltyKeys(products);
 }
 
 function collectionKey(name: string | null | undefined): string | null {
@@ -207,9 +220,10 @@ export function getProductsByCategory(
 export function buildNoveltyMatrix(
   products: ProductRow[],
   overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+  options?: { sinceDay?: string },
 ): NoveltyMatrixCell[] {
   const latest = latestByUrl(products);
-  const trueNewUrls = collectTrueNoveltyKeys(products);
+  const trueNewUrls = collectNoveltyKeys(products, options);
 
   const cells = new Map<string, NoveltyMatrixCell>();
   const parentKeysByCell = new Map<string, Record<SiteId, Set<string>>>();
@@ -298,10 +312,11 @@ function collectNoveltyCandidatesForSite(
   site: SiteId,
   filter?: { macroId: string; subId: string },
   overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+  options?: { sinceDay?: string },
 ): NoveltyProduct[] {
   const latest = latestByUrl(products);
   const first = earliestByUrl(products);
-  const trueNewUrls = collectTrueNoveltyKeys(products);
+  const trueNewUrls = collectNoveltyKeys(products, options);
   const candidates: NoveltyProduct[] = [];
 
   for (const key of trueNewUrls) {
@@ -357,19 +372,21 @@ export function getNoveltiesForCategory(
   macroId: string,
   subId: string,
   overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+  options?: { sinceDay?: string },
 ): NoveltyProduct[] {
-  return collectNoveltyCandidatesForSite(products, site, { macroId, subId }, overrides);
+  return collectNoveltyCandidatesForSite(products, site, { macroId, subId }, overrides, options);
 }
 
 export function buildTopNoveltiesBySite(
   products: ProductRow[],
   limit = 10,
+  options?: { sinceDay?: string },
 ): Record<SiteId, NoveltyProduct[]> {
   const result = {} as Record<SiteId, NoveltyProduct[]>;
 
   for (const competitor of COMPETITORS) {
     const site = competitor.id;
-    const mapped = collectNoveltyCandidatesForSite(products, site);
+    const mapped = collectNoveltyCandidatesForSite(products, site, undefined, EMPTY_OVERRIDES, options);
     result[site] = mapped.slice(0, limit);
   }
 

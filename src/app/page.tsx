@@ -1,9 +1,9 @@
 import { Dashboard } from "@/components/Dashboard";
-import { getDashboardData, getScrapeDays } from "@/lib/data";
+import { getDashboardData } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [data, scrapeDays] = await Promise.all([getDashboardData(), getScrapeDays()]);
-  return <Dashboard data={data} scrapeDays={scrapeDays} />;
+  const data = await getDashboardData();
+  return <Dashboard data={data} />;
 }

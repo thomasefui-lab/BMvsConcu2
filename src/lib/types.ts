@@ -24,6 +24,8 @@ export interface ProductRow {
   image_url?: string | null;
   /** Premier nombre d'avis connu (vue dashboard_products) */
   first_review_count?: number | null;
+  /** Date du premier scrape connu (vue dashboard_products) */
+  first_scraped_at?: string | null;
   /** Clé de regroupement parent (nom hors couleur + matière) */
   parent_key?: string;
   /** Nombre de déclinaisons couleur regroupées sous cette ligne */
@@ -148,4 +150,19 @@ export interface ScrapeDay {
   first_scraped_at: string;
   last_scraped_at: string;
   snapshot_count: number;
+}
+
+export interface PriceHistoryPoint {
+  scrape_day: string;
+  avg_cents: number;
+  median_cents: number;
+  sample_count: number;
+  excluded_outliers: number;
+}
+
+export interface ProductSearchOption {
+  site: SiteId;
+  product_url: string;
+  product_name: string;
+  price_cents: number | null;
 }

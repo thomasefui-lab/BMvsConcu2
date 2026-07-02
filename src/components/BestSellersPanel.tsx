@@ -52,6 +52,10 @@ function SiteSection({
 export function BestSellersPanel({ byReviews, byGrowth, lastUpdates }: BestSellersPanelProps) {
   return (
     <div className="space-y-10">
+      <p className="text-sm text-slate-500">
+        Classements historiques sur le catalogue actuel (dernier scrape) — momentum depuis la
+        première collecte en base.
+      </p>
       <section>
         <h2 className="mb-4 text-lg font-bold text-brand-900">Top 20 par nombre total d&apos;avis</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

@@ -1,12 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DashboardData, ScrapeDay } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import type { DashboardData } from "@/lib/types";
 import {
   buildAllProductTrees,
   buildBestSellers,
-  buildNoveltyMatrix,
-  buildTopNoveltiesBySite,
   buildTopReviewGrowth,
   countParentReferences,
   getLastOfferUpdateBySite,
@@ -16,59 +14,82 @@ import { ProductTree } from "./ProductTree";
 import { NoveltiesPanel } from "./NoveltiesPanel";
 import { BestSellersPanel } from "./BestSellersPanel";
 import { BestMoversPanel } from "./BestMoversPanel";
+import { PriceEvolutionPanel } from "./PriceEvolutionPanel";
 import { TreePrintView } from "./TreePrintView";
+import { LoadingSpinner } from "./ui/LoadingSpinner";
 
 const TABS = [
   { id: "tree", label: "Arborescence produits" },
   { id: "novelties", label: "Nouveautés" },
-  { id: "bestsellers", label: "Best sellers" },
-  { id: "movers", label: "Proxy des meilleurs" },
+  { id: "bestsellers", label: "Runners Historiques" },
+  { id: "movers", label: "Meilleures ventes actuelles" },
+  { id: "prices", label: "Évolution des prix" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 interface DashboardProps {
   data: DashboardData;
-  scrapeDays: ScrapeDay[];
 }
 
-export function Dashboard({ data, scrapeDays }: DashboardProps) {
+export function Dashboard({ data }: DashboardProps) {
   const [tab, setTab] = useState<TabId>("tree");
+  const [visited, setVisited] = useState<Set<TabId>>(() => new Set(["tree"]));
+  const [isTabPending, startTabTransition] = useTransition();
   const [selectedSite, setSelectedSite] = useState("bestmobilier");
   const [overrides, setOverrides] = useState<TaxonomyOverrides>(() => loadOverrides());
+  const [printTrees, setPrintTrees] = useState<ReturnType<typeof buildAllProductTrees> | null>(null);
 
   useEffect(() => {
     setOverrides(loadOverrides());
   }, []);
 
-  const parentCount = countParentReferences(data.products);
-  const trees = useMemo(
-    () => buildAllProductTrees(data.products, overrides),
-    [data.products, overrides],
-  );
-  const noveltyMatrix = useMemo(
-    () => buildNoveltyMatrix(data.products, overrides),
-    [data.products, overrides],
-  );
-  const topNovelties = buildTopNoveltiesBySite(data.products);
-  const bestSellers = buildBestSellers(data.products, 20);
-  const topGrowth = buildTopReviewGrowth(data.products);
+  const parentCount = useMemo(() => countParentReferences(data.products), [data.products]);
   const lastUpdates = useMemo(() => getLastOfferUpdateBySite(data.products), [data.products]);
 
-  // Refs sur chaque arbre de print
+  const bestSellers = useMemo(
+    () =>
+      tab === "bestsellers" || visited.has("bestsellers")
+        ? buildBestSellers(data.products, 20)
+        : undefined,
+    [data.products, tab, visited],
+  );
+  const topGrowth = useMemo(
+    () =>
+      tab === "bestsellers" || visited.has("bestsellers")
+        ? buildTopReviewGrowth(data.products)
+        : undefined,
+    [data.products, tab, visited],
+  );
+
   const printRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const [exporting, setExporting] = useState(false);
   const handleExportPDF = useCallback(async () => {
     setExporting(true);
     try {
+      const built = buildAllProductTrees(data.products, overrides);
+      setPrintTrees(built);
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
       const elements = printRefs.current.filter((el): el is HTMLDivElement => el !== null);
       const { exportTreesPDF } = await import("@/lib/export-pdf");
       await exportTreesPDF(elements);
     } finally {
+      setPrintTrees(null);
       setExporting(false);
     }
-  }, []);
+  }, [data.products, overrides]);
+
+  const selectTab = (id: TabId) => {
+    startTabTransition(() => {
+      setTab(id);
+      setVisited((prev) => new Set(prev).add(id));
+    });
+  };
+
+  const showTabLoader = isTabPending;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -87,20 +108,14 @@ export function Dashboard({ data, scrapeDays }: DashboardProps) {
                 disabled={exporting}
                 className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-brand-600 disabled:opacity-60"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-4 w-4"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 3a1 1 0 0 1 1 1v7.586l2.293-2.293a1 1 0 1 1 1.414 1.414l-4 4a1 1 0 0 1-1.414 0l-4-4a1 1 0 1 1 1.414-1.414L9 11.586V4a1 1 0 0 1 1-1Z"
-                    clipRule="evenodd"
-                  />
-                  <path d="M3 15a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H4a1 1 0 0 1-1-1Z" />
-                </svg>
-                {exporting ? "Génération…" : "Exporter PDF"}
+                {exporting ? (
+                  <>
+                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Génération…
+                  </>
+                ) : (
+                  "Exporter PDF"
+                )}
               </button>
               <div className="text-right text-xs text-brand-200">
                 <p>
@@ -112,7 +127,10 @@ export function Dashboard({ data, scrapeDays }: DashboardProps) {
                 <p>
                   {parentCount.toLocaleString("fr-FR")} références parent
                   <span className="text-brand-300"> · </span>
-                  {data.products.length.toLocaleString("fr-FR")} URLs
+                  {data.products.length.toLocaleString("fr-FR")} URLs (dernier scrape)
+                </p>
+                <p className="mt-1 max-w-xs text-[10px] leading-snug text-brand-300">
+                  Produits retirés du site : absents de cette vue, conservés dans l&apos;historique.
                 </p>
               </div>
             </div>
@@ -120,49 +138,63 @@ export function Dashboard({ data, scrapeDays }: DashboardProps) {
         </div>
       </header>
 
-      {/* Conteneurs hors-écran pour la capture PDF — 1 arbre par acteur */}
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          left: "-9999px",
-          top: 0,
-          width: "1122px",
-          pointerEvents: "none",
-        }}
-      >
-        {trees.map((tree, i) => (
-          <TreePrintView
-            key={tree.site}
-            ref={(el) => {
-              printRefs.current[i] = el;
-            }}
-            tree={tree}
-            overrides={overrides}
-          />
-        ))}
-      </div>
+      {printTrees ? (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "fixed",
+            left: "-9999px",
+            top: 0,
+            width: "1122px",
+            pointerEvents: "none",
+          }}
+        >
+          {printTrees.map((tree, i) => (
+            <TreePrintView
+              key={tree.site}
+              ref={(el) => {
+                printRefs.current[i] = el;
+              }}
+              tree={tree}
+              overrides={overrides}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
         <nav className="mb-6 flex flex-wrap gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition ${
-                tab === t.id
-                  ? "bg-brand-700 text-white shadow"
-                  : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-brand-50"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+          {TABS.map((t) => {
+            const isActive = tab === t.id;
+            const isLoading = isTabPending && isActive;
+            return (
+              <button
+                key={t.id}
+                onClick={() => selectTab(t.id)}
+                disabled={isTabPending}
+                className={`flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition ${
+                  isActive
+                    ? "bg-brand-700 text-white shadow"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-brand-50"
+                } disabled:opacity-70`}
+              >
+                {isLoading ? (
+                  <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                ) : null}
+                {t.label}
+              </button>
+            );
+          })}
         </nav>
 
-        {tab === "tree" && (
+        {showTabLoader ? (
+          <div className="flex min-h-[320px] items-center justify-center rounded-xl border border-slate-200 bg-white py-16">
+            <LoadingSpinner label="Préparation de l'onglet…" />
+          </div>
+        ) : null}
+
+        {!showTabLoader && tab === "tree" && data.products.length > 0 ? (
           <ProductTree
-            trees={trees}
             products={data.products}
             selectedSite={selectedSite}
             overrides={overrides}
@@ -170,20 +202,25 @@ export function Dashboard({ data, scrapeDays }: DashboardProps) {
             onSelectSite={setSelectedSite}
             lastUpdates={lastUpdates}
           />
-        )}
-        {tab === "novelties" && (
+        ) : null}
+
+        {!showTabLoader && tab === "novelties" ? (
           <NoveltiesPanel
-            matrix={noveltyMatrix}
-            topBySite={topNovelties}
             products={data.products}
             overrides={overrides}
             lastUpdates={lastUpdates}
           />
-        )}
-        {tab === "bestsellers" && (
+        ) : null}
+
+        {!showTabLoader && tab === "bestsellers" && bestSellers && topGrowth ? (
           <BestSellersPanel byReviews={bestSellers} byGrowth={topGrowth} lastUpdates={lastUpdates} />
-        )}
-        {tab === "movers" && <BestMoversPanel scrapeDays={scrapeDays} />}
+        ) : null}
+
+        {!showTabLoader && tab === "movers" ? <BestMoversPanel /> : null}
+
+        {!showTabLoader && tab === "prices" ? (
+          <PriceEvolutionPanel products={data.products} />
+        ) : null}
       </div>
     </div>
   );

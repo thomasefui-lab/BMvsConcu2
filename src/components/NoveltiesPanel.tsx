@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { getNoveltiesForCategory } from "@/lib/analytics";
+import { useEffect, useMemo, useState } from "react";
+import {
+  buildNoveltyMatrix,
+  buildTopNoveltiesBySite,
+  getNoveltiesForCategory,
+} from "@/lib/analytics";
 import type { TaxonomyOverrides } from "@/lib/classification-overrides";
 import { formatOfferUpdateDateShort } from "@/lib/dates";
-import type { NoveltyMatrixCell, NoveltyProduct, ProductRow, SiteId } from "@/lib/types";
+import type { NoveltyMatrixCell, ProductRow, ScrapeDay, SiteId } from "@/lib/types";
 import { COMPETITORS } from "@/lib/types";
 import { NoveltyProductsModal } from "./NoveltyProductsModal";
 import { ProductCard } from "./ProductCard";
 
 interface NoveltiesPanelProps {
-  matrix: NoveltyMatrixCell[];
-  topBySite: Record<SiteId, NoveltyProduct[]>;
   products: ProductRow[];
   overrides: TaxonomyOverrides;
   lastUpdates: Record<SiteId, string | null>;
@@ -25,14 +27,38 @@ interface CellModalState {
   title: string;
 }
 
-export function NoveltiesPanel({
-  matrix,
-  topBySite,
-  products,
-  overrides,
-  lastUpdates,
-}: NoveltiesPanelProps) {
+export function NoveltiesPanel({ products, overrides, lastUpdates }: NoveltiesPanelProps) {
   const [cellModal, setCellModal] = useState<CellModalState | null>(null);
+  const [scrapeDays, setScrapeDays] = useState<ScrapeDay[]>([]);
+  const [sinceDay, setSinceDay] = useState<string>("");
+  const [useCustomSince, setUseCustomSince] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/scrape-days")
+      .then((r) => r.json())
+      .then((body: { days: ScrapeDay[] }) => setScrapeDays(body.days ?? []))
+      .catch(() => setScrapeDays([]));
+  }, []);
+
+  const availableDays = useMemo(
+    () => [...new Set(scrapeDays.map((d) => d.scrape_day).filter(Boolean))].sort(),
+    [scrapeDays],
+  );
+
+  const noveltyOptions = useMemo(
+    () => (useCustomSince && sinceDay ? { sinceDay } : undefined),
+    [useCustomSince, sinceDay],
+  );
+
+  const matrix = useMemo(
+    () => buildNoveltyMatrix(products, overrides, noveltyOptions),
+    [products, overrides, noveltyOptions],
+  );
+  const topBySite = useMemo(
+    () => buildTopNoveltiesBySite(products, 10, noveltyOptions),
+    [products, noveltyOptions],
+  );
+
   const macroGroups = [...new Set(matrix.map((m) => m.macroLabel))];
 
   const modalProducts = useMemo(() => {
@@ -43,8 +69,9 @@ export function NoveltiesPanel({
       cellModal.macroId,
       cellModal.subId,
       overrides,
+      noveltyOptions,
     );
-  }, [cellModal, products, overrides]);
+  }, [cellModal, products, overrides, noveltyOptions]);
 
   const openCell = (row: NoveltyMatrixCell, site: SiteId, siteLabel: string) => {
     if (row.counts[site] <= 0) return;
@@ -59,6 +86,40 @@ export function NoveltiesPanel({
 
   return (
     <>
+      <div className="mb-4 flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-brand-900">Filtre nouveautés</h2>
+          <p className="text-xs text-slate-500">
+            Par défaut : depuis le 1er scrape de référence. Activez le filtre pour choisir une date.
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={useCustomSince}
+            onChange={(e) => {
+              setUseCustomSince(e.target.checked);
+              if (e.target.checked && !sinceDay && availableDays.length) {
+                setSinceDay(availableDays[0]);
+              }
+            }}
+          />
+          Nouveautés depuis le
+        </label>
+        <select
+          value={sinceDay}
+          disabled={!useCustomSince || !availableDays.length}
+          onChange={(e) => setSinceDay(e.target.value)}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
+        >
+          {availableDays.map((d) => (
+            <option key={d} value={d}>
+              {formatOfferUpdateDateShort(`${d}T12:00:00.000Z`)}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-200 bg-brand-50 px-4 py-3">

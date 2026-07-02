@@ -1,25 +1,26 @@
 import { readFileSync, existsSync } from "fs";
 import path from "path";
+import { unstable_cache } from "next/cache";
 import { createSupabaseServerClient } from "./supabase";
 import { fetchAllRows } from "./supabase-fetch";
 import type {
-  DailyEventRow,
   DashboardData,
   ProductRow,
   ReviewGrowthRow,
   ScrapeDay,
   SiteId,
 } from "./types";
+import { aggregatePriceByDay, type RawPriceObservation } from "./price-analytics";
 
 const DEMO_PATH = path.join(process.cwd(), "public", "demo-data.json");
 
 const SITES: SiteId[] = ["bestmobilier", "bobochic", "sweeek", "baita", "habitat"];
 
 const PRODUCT_COLUMNS =
-  "site,category_name,category_url,product_url,product_name,collection_name,price_cents,price_text,review_count,badges,position,scraped_at,image_url,first_review_count";
+  "site,category_name,category_url,product_url,product_name,collection_name,price_cents,price_text,review_count,badges,position,scraped_at,image_url,first_review_count,first_scraped_at";
 
-const EVENT_COLUMNS =
-  "site,event_type,category_name,product_url,product_name,old_value,new_value,detected_at";
+const SNAPSHOT_COLUMNS =
+  "site,category_name,category_url,product_url,product_name,collection_name,price_cents,price_text,review_count,badges,position,scraped_at";
 
 function parseProductRow(row: Record<string, unknown>): ProductRow {
   return {
@@ -41,19 +42,7 @@ function parseProductRow(row: Record<string, unknown>): ProductRow {
       row.first_review_count != null && row.first_review_count !== ""
         ? Number(row.first_review_count)
         : null,
-  };
-}
-
-function parseEventRow(row: Record<string, unknown>): DailyEventRow {
-  return {
-    site: row.site as SiteId,
-    event_type: String(row.event_type ?? ""),
-    category_name: row.category_name ? String(row.category_name) : null,
-    product_url: String(row.product_url ?? ""),
-    product_name: row.product_name ? String(row.product_name) : null,
-    old_value: row.old_value ? String(row.old_value) : null,
-    new_value: row.new_value ? String(row.new_value) : null,
-    detected_at: String(row.detected_at ?? new Date().toISOString()),
+    first_scraped_at: row.first_scraped_at ? String(row.first_scraped_at) : null,
   };
 }
 
@@ -64,7 +53,7 @@ async function fetchDashboardProducts(client: NonNullable<ReturnType<typeof crea
       const columns =
         view === "dashboard_products"
           ? PRODUCT_COLUMNS
-          : PRODUCT_COLUMNS.replace(",first_review_count", "");
+          : SNAPSHOT_COLUMNS;
       const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
         const { data, error } = await client
           .from(view)
@@ -88,38 +77,17 @@ async function fetchDashboardProducts(client: NonNullable<ReturnType<typeof crea
   return [];
 }
 
-async function fetchEvents(client: NonNullable<ReturnType<typeof createSupabaseServerClient>>) {
-  const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
-    const { data, error } = await client
-      .from("daily_events")
-      .select(EVENT_COLUMNS)
-      .in("site", SITES)
-      .in("event_type", ["new_product", "review_count_increase", "new_collection"])
-      .order("detected_at", { ascending: false })
-      .range(from, to);
-    return {
-      data: (data ?? null) as Record<string, unknown>[] | null,
-      error: error ? { message: error.message } : null,
-    };
-  });
-  return rows.map(parseEventRow);
-}
-
 async function fetchFromSupabase(): Promise<DashboardData | null> {
   const client = createSupabaseServerClient();
   if (!client) return null;
 
   try {
-    const [products, events] = await Promise.all([
-      fetchDashboardProducts(client),
-      fetchEvents(client),
-    ]);
-
+    const products = await fetchDashboardProducts(client);
     if (products.length === 0) return null;
 
     return {
       products,
-      events,
+      events: [],
       fetchedAt: new Date().toISOString(),
       source: "supabase",
     };
@@ -129,6 +97,40 @@ async function fetchFromSupabase(): Promise<DashboardData | null> {
   }
 }
 
+const getCachedSupabaseDashboard = unstable_cache(
+  fetchFromSupabase,
+  ["dashboard-data"],
+  { revalidate: 120 },
+);
+
+const getCachedScrapeDays = unstable_cache(
+  async () => {
+    const client = createSupabaseServerClient();
+    if (!client) return [] as ScrapeDay[];
+    try {
+      const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
+        const { data, error } = await client
+          .from("scrape_days")
+          .select("site,scrape_day,first_scraped_at,last_scraped_at,snapshot_count")
+          .in("site", SITES)
+          .order("site", { ascending: true })
+          .order("scrape_day", { ascending: true })
+          .range(from, to);
+        return {
+          data: (data ?? null) as Record<string, unknown>[] | null,
+          error: error ? { message: error.message } : null,
+        };
+      });
+      return rows.map(parseScrapeDay);
+    } catch (error) {
+      console.error("getScrapeDays error:", error);
+      return [];
+    }
+  },
+  ["scrape-days"],
+  { revalidate: 300 },
+);
+
 function loadDemoData(): DashboardData | null {
   if (!existsSync(DEMO_PATH)) return null;
   const raw = JSON.parse(readFileSync(DEMO_PATH, "utf-8")) as {
@@ -137,14 +139,14 @@ function loadDemoData(): DashboardData | null {
   };
   return {
     products: raw.products.map(parseProductRow),
-    events: raw.events.map(parseEventRow),
+    events: [],
     fetchedAt: new Date().toISOString(),
     source: "demo",
   };
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const fromSupabase = await fetchFromSupabase();
+  const fromSupabase = await getCachedSupabaseDashboard();
   if (fromSupabase) return fromSupabase;
 
   const demo = loadDemoData();
@@ -170,28 +172,7 @@ function parseScrapeDay(row: Record<string, unknown>): ScrapeDay {
 
 /** Jours de scrape disponibles (vue scrape_days). Vide en mode démo. */
 export async function getScrapeDays(): Promise<ScrapeDay[]> {
-  const client = createSupabaseServerClient();
-  if (!client) return [];
-
-  try {
-    const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
-      const { data, error } = await client
-        .from("scrape_days")
-        .select("site,scrape_day,first_scraped_at,last_scraped_at,snapshot_count")
-        .in("site", SITES)
-        .order("site", { ascending: true })
-        .order("scrape_day", { ascending: true })
-        .range(from, to);
-      return {
-        data: (data ?? null) as Record<string, unknown>[] | null,
-        error: error ? { message: error.message } : null,
-      };
-    });
-    return rows.map(parseScrapeDay);
-  } catch (error) {
-    console.error("getScrapeDays error:", error);
-    return [];
-  }
+  return getCachedScrapeDays();
 }
 
 function parseReviewGrowthRow(row: Record<string, unknown>): ReviewGrowthRow {
@@ -242,4 +223,91 @@ export async function getReviewGrowth(
     console.error("getReviewGrowth error:", error);
     return [];
   }
+}
+
+function latestRowsByUrl(rows: ProductRow[]): ProductRow[] {
+  const map = new Map<string, ProductRow>();
+  for (const row of rows) {
+    const key = `${row.site}|${row.product_url}`;
+    const existing = map.get(key);
+    if (!existing || row.scraped_at > existing.scraped_at) {
+      map.set(key, row);
+    }
+  }
+  return [...map.values()];
+}
+
+/** Catalogue tel qu'il existait à une date de scrape (1 snapshot / URL ce jour-là). */
+export async function getProductsAtScrapeDay(site: SiteId, scrapeDay: string): Promise<ProductRow[]> {
+  const client = createSupabaseServerClient();
+  if (!client) return [];
+
+  const dayStart = `${scrapeDay}T00:00:00.000Z`;
+  const dayEnd = `${scrapeDay}T23:59:59.999Z`;
+
+  try {
+    const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
+      const { data, error } = await client
+        .from("product_snapshots")
+        .select(SNAPSHOT_COLUMNS)
+        .eq("site", site)
+        .gte("scraped_at", dayStart)
+        .lte("scraped_at", dayEnd)
+        .order("product_url", { ascending: true })
+        .order("scraped_at", { ascending: false })
+        .range(from, to);
+      return {
+        data: (data ?? null) as Record<string, unknown>[] | null,
+        error: error ? { message: error.message } : null,
+      };
+    });
+    return latestRowsByUrl(rows.map(parseProductRow));
+  } catch (error) {
+    console.error("getProductsAtScrapeDay error:", error);
+    return [];
+  }
+}
+
+/** Observations prix historiques pour construire une courbe d'évolution. */
+export async function getPriceObservations(
+  sites: SiteId[],
+  productUrls?: string[],
+): Promise<RawPriceObservation[]> {
+  const client = createSupabaseServerClient();
+  if (!client) return [];
+
+  try {
+    const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
+      let query = client
+        .from("product_snapshots")
+        .select("site,product_url,price_cents,scraped_at")
+        .in("site", sites)
+        .not("price_cents", "is", null)
+        .gt("price_cents", 0)
+        .order("scraped_at", { ascending: true });
+
+      if (productUrls?.length) {
+        query = query.in("product_url", productUrls);
+      }
+
+      const { data, error } = await query.range(from, to);
+      return {
+        data: (data ?? null) as Record<string, unknown>[] | null,
+        error: error ? { message: error.message } : null,
+      };
+    });
+
+    return rows.map((row) => ({
+      scrape_day: String(row.scraped_at ?? "").slice(0, 10),
+      price_cents: Number(row.price_cents),
+    }));
+  } catch (error) {
+    console.error("getPriceObservations error:", error);
+    return [];
+  }
+}
+
+export async function getPriceHistorySeries(sites: SiteId[], productUrls?: string[]) {
+  const observations = await getPriceObservations(sites, productUrls);
+  return aggregatePriceByDay(observations);
 }
