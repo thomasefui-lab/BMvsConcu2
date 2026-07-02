@@ -452,8 +452,8 @@ export function countParentReferences(products: ProductRow[]): number {
  * Regroupe les lignes brutes de la RPC review_growth_between au niveau référence parent
  * (déclinaisons couleur fusionnées), puis renvoie le top `limit` par évolution d'avis.
  *
- * Delta parent = somme des évolutions des variantes du groupe (chaque URL = une déclinaison),
- * ce qui reflète l'élan commercial total de la référence sur la période.
+ * Classement et affichage basés sur la variante au plus fort delta d'avis dans le groupe
+ * (pas une somme des avis — qui gonflerait artificiellement le total affiché).
  */
 export function aggregateReviewMovers(
   rows: ReviewGrowthRow[],
@@ -476,26 +476,37 @@ export function aggregateReviewMovers(
     review_growth: row.review_growth,
   }));
 
+  type GrowthVariant = (typeof variants)[number];
   const groups = collapseToParentGroups(variants);
 
+  function pickTopGrowthVariant(group: (typeof groups)[number]): GrowthVariant {
+    return group.variants.reduce((best, variant) => {
+      const growth = variant.review_growth ?? 0;
+      const bestGrowth = best.review_growth ?? 0;
+      if (growth > bestGrowth) return variant;
+      if (growth === bestGrowth && (variant.end_reviews ?? 0) > (best.end_reviews ?? 0)) {
+        return variant;
+      }
+      return best;
+    }, group.representative);
+  }
+
   const movers: ReviewMoverProduct[] = groups.map((group) => {
-    const rep = group.representative;
-    const startReviews = group.variants.reduce((sum, v) => sum + (v.start_reviews ?? 0), 0);
-    const endReviews = group.variants.reduce((sum, v) => sum + (v.end_reviews ?? 0), 0);
-    const growth = group.variants.reduce((sum, v) => sum + (v.review_growth ?? 0), 0);
+    const mover = pickTopGrowthVariant(group);
 
     return {
-      site: rep.site,
+      site: mover.site,
       parent_key: group.parentKey,
-      product_url: rep.product_url ?? "",
+      product_url: mover.product_url ?? "",
       product_name: group.displayName,
-      category_name: rep.category_name ?? "",
-      collection_name: rep.collection_name,
-      start_reviews: startReviews,
-      end_reviews: endReviews,
-      review_growth: growth,
-      price_text: group.priceRangeText ?? rep.price_text ?? null,
-      image_url: rep.image_url ?? guessProductImageUrl(rep.site, rep.product_url ?? ""),
+      category_name: mover.category_name ?? "",
+      collection_name: mover.collection_name,
+      start_reviews: mover.start_reviews ?? 0,
+      end_reviews: mover.end_reviews ?? mover.review_count ?? 0,
+      review_growth: mover.review_growth ?? 0,
+      price_text: group.priceRangeText ?? mover.price_text ?? null,
+      image_url: mover.image_url ?? guessProductImageUrl(mover.site, mover.product_url ?? ""),
+      variant_count: group.variantCount > 1 ? group.variantCount : undefined,
     };
   });
 

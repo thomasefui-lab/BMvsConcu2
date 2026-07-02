@@ -137,6 +137,8 @@ export interface ReviewMoverProduct {
   review_growth: number;
   price_text: string | null;
   image_url: string | null;
+  /** Nombre de déclinaisons regroupées (couleurs / URLs). */
+  variant_count?: number;
 }
 
 /** Jour de scrape disponible pour un site (alimente les sélecteurs de période). */

@@ -164,6 +164,7 @@ export function BestMoversPanel({ scrapeDays }: BestMoversPanelProps) {
                         priceText={p.price_text}
                         reviewCount={p.end_reviews}
                         reviewGrowth={p.review_growth}
+                        variantCount={p.variant_count}
                         meta={`${p.start_reviews} → ${p.end_reviews} avis`}
                       />
                     ))
