@@ -2,11 +2,13 @@
 
 import type { BestSellerProduct, SiteId } from "@/lib/types";
 import { COMPETITORS } from "@/lib/types";
+import { formatOfferUpdateDateShort } from "@/lib/dates";
 import { ProductCard } from "./ProductCard";
 
 interface BestSellersPanelProps {
   byReviews: Record<SiteId, BestSellerProduct[]>;
   byGrowth: Record<SiteId, BestSellerProduct[]>;
+  lastUpdates: Record<SiteId, string | null>;
 }
 
 function SiteSection({
@@ -47,17 +49,17 @@ function SiteSection({
   );
 }
 
-export function BestSellersPanel({ byReviews, byGrowth }: BestSellersPanelProps) {
+export function BestSellersPanel({ byReviews, byGrowth, lastUpdates }: BestSellersPanelProps) {
   return (
     <div className="space-y-10">
       <section>
-        <h2 className="mb-4 text-lg font-bold text-brand-900">Top 10 par nombre total d&apos;avis</h2>
+        <h2 className="mb-4 text-lg font-bold text-brand-900">Top 20 par nombre total d&apos;avis</h2>
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {COMPETITORS.map((c) => (
             <SiteSection
               key={`reviews-${c.id}`}
               title={c.label}
-              subtitle="Produits les plus commentés"
+              subtitle={`Produits les plus commentés · Offre MAJ le ${formatOfferUpdateDateShort(lastUpdates[c.id])}`}
               items={byReviews[c.id] ?? []}
             />
           ))}
@@ -76,7 +78,7 @@ export function BestSellersPanel({ byReviews, byGrowth }: BestSellersPanelProps)
             <SiteSection
               key={`growth-${c.id}`}
               title={c.label}
-              subtitle="Momentum — produits qui accélèrent"
+              subtitle={`Momentum — produits qui accélèrent · Offre MAJ le ${formatOfferUpdateDateShort(lastUpdates[c.id])}`}
               items={byGrowth[c.id] ?? []}
             />
           ))}

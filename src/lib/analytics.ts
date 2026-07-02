@@ -259,65 +259,115 @@ export function buildNoveltyMatrix(
   return [...cells.values()].filter((c) => Object.values(c.counts).some((n) => n > 0));
 }
 
+function mapNoveltyCandidates(
+  candidates: NoveltyProduct[],
+  site: SiteId,
+): NoveltyProduct[] {
+  const groups = collapseToParentGroups(
+    candidates.map((c) => ({
+      ...c,
+      product_name: c.product_name,
+      review_count: c.review_count,
+      product_url: c.product_url,
+    })),
+  );
+  const mapped: NoveltyProduct[] = groups.map((group) => {
+    const rep = group.representative;
+    return {
+      site: rep.site,
+      parent_key: group.parentKey,
+      product_url: rep.product_url,
+      product_name: group.displayName,
+      category_name: rep.category_name ?? "",
+      collection_name: rep.collection_name,
+      review_count: group.reviewCount,
+      review_growth: Math.max(...group.variants.map((v) => (v as NoveltyProduct).review_growth ?? 0)),
+      price_text: group.priceRangeText ?? rep.price_text,
+      image_url: rep.image_url ?? guessProductImageUrl(site, rep.product_url),
+      detected_at: (rep as NoveltyProduct).detected_at,
+    };
+  });
+  mapped.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
+  return mapped;
+}
+
+function collectNoveltyCandidatesForSite(
+  products: ProductRow[],
+  site: SiteId,
+  filter?: { macroId: string; subId: string },
+  overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+): NoveltyProduct[] {
+  const latest = latestByUrl(products);
+  const first = earliestByUrl(products);
+  const trueNewUrls = collectTrueNoveltyKeys(products);
+  const candidates: NoveltyProduct[] = [];
+
+  for (const key of trueNewUrls) {
+    if (!key.startsWith(`${site}|`)) continue;
+    const current = latest.get(key);
+    const firstSnap = first.get(key);
+    if (!current || !firstSnap) continue;
+
+    if (filter) {
+      const { macroId, subId } = getEffectiveClassification(current, overrides);
+      if (macroId !== filter.macroId || subId !== filter.subId) continue;
+    }
+
+    const currentReviews = current.review_count ?? 0;
+    candidates.push({
+      site,
+      product_url: current.product_url,
+      product_name: cleanProductName(current.product_name),
+      category_name: current.category_name,
+      collection_name: current.collection_name,
+      review_count: currentReviews,
+      review_growth: currentReviews,
+      price_text: current.price_text,
+      image_url: current.image_url ?? guessProductImageUrl(site, current.product_url),
+      detected_at: firstSnap.scraped_at,
+    });
+  }
+
+  return mapNoveltyCandidates(candidates, site);
+}
+
+/** Dernière date de scrape par concurrent (= dernière mise à jour de l'offre connue). */
+export function getLastOfferUpdateBySite(products: ProductRow[]): Record<SiteId, string | null> {
+  const result = {} as Record<SiteId, string | null>;
+  for (const competitor of COMPETITORS) {
+    const siteProducts = products.filter((p) => p.site === competitor.id);
+    if (siteProducts.length === 0) {
+      result[competitor.id] = null;
+      continue;
+    }
+    result[competitor.id] = siteProducts.reduce(
+      (max, p) => (p.scraped_at > max ? p.scraped_at : max),
+      siteProducts[0].scraped_at,
+    );
+  }
+  return result;
+}
+
+/** Nouveautés d'une sous-catégorie pour un concurrent donné. */
+export function getNoveltiesForCategory(
+  products: ProductRow[],
+  site: SiteId,
+  macroId: string,
+  subId: string,
+  overrides: TaxonomyOverrides = EMPTY_OVERRIDES,
+): NoveltyProduct[] {
+  return collectNoveltyCandidatesForSite(products, site, { macroId, subId }, overrides);
+}
+
 export function buildTopNoveltiesBySite(
   products: ProductRow[],
   limit = 10,
 ): Record<SiteId, NoveltyProduct[]> {
-  const latest = latestByUrl(products);
-  const first = earliestByUrl(products);
-  const trueNewUrls = collectTrueNoveltyKeys(products);
   const result = {} as Record<SiteId, NoveltyProduct[]>;
 
   for (const competitor of COMPETITORS) {
     const site = competitor.id;
-    const candidates: NoveltyProduct[] = [];
-
-    for (const key of trueNewUrls) {
-      if (!key.startsWith(`${site}|`)) continue;
-      const current = latest.get(key);
-      const firstSnap = first.get(key);
-      if (!current || !firstSnap) continue;
-
-      const currentReviews = current.review_count ?? 0;
-      candidates.push({
-        site,
-        product_url: current.product_url,
-        product_name: cleanProductName(current.product_name),
-        category_name: current.category_name,
-        collection_name: current.collection_name,
-        review_count: currentReviews,
-        review_growth: currentReviews,
-        price_text: current.price_text,
-        image_url: current.image_url ?? guessProductImageUrl(site, current.product_url),
-        detected_at: firstSnap.scraped_at,
-      });
-    }
-
-    const groups = collapseToParentGroups(
-      candidates.map((c) => ({
-        ...c,
-        product_name: c.product_name,
-        review_count: c.review_count,
-        product_url: c.product_url,
-      })),
-    );
-    const mapped: NoveltyProduct[] = groups.map((group) => {
-      const rep = group.representative;
-      return {
-        site: rep.site,
-        parent_key: group.parentKey,
-        product_url: rep.product_url,
-        product_name: group.displayName,
-        category_name: rep.category_name ?? "",
-        collection_name: rep.collection_name,
-        review_count: group.reviewCount,
-        review_growth: Math.max(...group.variants.map((v) => (v as NoveltyProduct).review_growth ?? 0)),
-        price_text: group.priceRangeText ?? rep.price_text,
-        image_url: rep.image_url ?? guessProductImageUrl(site, rep.product_url),
-        detected_at: (rep as NoveltyProduct).detected_at,
-      };
-    });
-    mapped.sort((a, b) => b.review_growth - a.review_growth || b.review_count - a.review_count);
+    const mapped = collectNoveltyCandidatesForSite(products, site);
     result[site] = mapped.slice(0, limit);
   }
 

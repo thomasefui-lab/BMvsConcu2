@@ -9,6 +9,7 @@ import {
   buildTopNoveltiesBySite,
   buildTopReviewGrowth,
   countParentReferences,
+  getLastOfferUpdateBySite,
 } from "@/lib/analytics";
 import { loadOverrides, type TaxonomyOverrides } from "@/lib/classification-overrides";
 import { ProductTree } from "./ProductTree";
@@ -47,8 +48,9 @@ export function Dashboard({ data }: DashboardProps) {
     [data.products, overrides],
   );
   const topNovelties = buildTopNoveltiesBySite(data.products);
-  const bestSellers = buildBestSellers(data.products);
+  const bestSellers = buildBestSellers(data.products, 20);
   const topGrowth = buildTopReviewGrowth(data.products);
+  const lastUpdates = useMemo(() => getLastOfferUpdateBySite(data.products), [data.products]);
 
   // Refs sur chaque arbre de print
   const printRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -163,11 +165,20 @@ export function Dashboard({ data }: DashboardProps) {
             overrides={overrides}
             onOverridesChange={setOverrides}
             onSelectSite={setSelectedSite}
+            lastUpdates={lastUpdates}
           />
         )}
-        {tab === "novelties" && <NoveltiesPanel matrix={noveltyMatrix} topBySite={topNovelties} />}
+        {tab === "novelties" && (
+          <NoveltiesPanel
+            matrix={noveltyMatrix}
+            topBySite={topNovelties}
+            products={data.products}
+            overrides={overrides}
+            lastUpdates={lastUpdates}
+          />
+        )}
         {tab === "bestsellers" && (
-          <BestSellersPanel byReviews={bestSellers} byGrowth={topGrowth} />
+          <BestSellersPanel byReviews={bestSellers} byGrowth={topGrowth} lastUpdates={lastUpdates} />
         )}
       </div>
     </div>

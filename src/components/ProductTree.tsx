@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { getProductsByCategory } from "@/lib/analytics";
 import type { ProductRow, ProductTreeData, SiteId } from "@/lib/types";
+import { formatOfferUpdateDateShort } from "@/lib/dates";
 import {
   countOverrides,
   getDefaultMacroForSub,
@@ -20,6 +21,7 @@ interface ProductTreeProps {
   overrides: TaxonomyOverrides;
   onOverridesChange: (overrides: TaxonomyOverrides) => void;
   onSelectSite: (site: string) => void;
+  lastUpdates: Record<SiteId, string | null>;
 }
 
 interface ModalState {
@@ -55,6 +57,7 @@ export function ProductTree({
   overrides,
   onOverridesChange,
   onSelectSite,
+  lastUpdates,
 }: ProductTreeProps) {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [draggingSubId, setDraggingSubId] = useState<string | null>(null);
@@ -119,6 +122,13 @@ export function ProductTree({
               >
                 {t.label}
                 <span className="ml-2 opacity-80">({t.total})</span>
+                <span
+                  className={`mt-0.5 block text-[10px] font-normal ${
+                    t.site === tree.site ? "text-brand-200" : "text-slate-400"
+                  }`}
+                >
+                  MAJ {formatOfferUpdateDateShort(lastUpdates[t.site as SiteId])}
+                </span>
               </button>
             ))}
           </div>
