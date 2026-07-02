@@ -19,6 +19,8 @@ import type {
   NoveltyProduct,
   ProductRow,
   ProductTreeData,
+  ReviewGrowthRow,
+  ReviewMoverProduct,
   SiteId,
 } from "./types";
 import { COMPETITORS } from "./types";
@@ -444,4 +446,59 @@ export function buildTopReviewGrowth(products: ProductRow[], limit = 10): Record
 /** Nombre total de références parent (hors déclinaisons couleur) pour l'en-tête dashboard. */
 export function countParentReferences(products: ProductRow[]): number {
   return latestParentGroups(products).length;
+}
+
+/**
+ * Regroupe les lignes brutes de la RPC review_growth_between au niveau référence parent
+ * (déclinaisons couleur fusionnées), puis renvoie le top `limit` par évolution d'avis.
+ *
+ * Delta parent = somme des évolutions des variantes du groupe (chaque URL = une déclinaison),
+ * ce qui reflète l'élan commercial total de la référence sur la période.
+ */
+export function aggregateReviewMovers(
+  rows: ReviewGrowthRow[],
+  limit = 25,
+): ReviewMoverProduct[] {
+  if (!rows.length) return [];
+
+  const variants = rows.map((row) => ({
+    site: row.site,
+    product_name: cleanProductName(row.product_name),
+    collection_name: row.collection_name,
+    category_name: row.category_name,
+    review_count: row.end_reviews,
+    price_cents: row.price_cents,
+    price_text: row.price_text,
+    product_url: row.product_url,
+    image_url: row.image_url,
+    start_reviews: row.start_reviews,
+    end_reviews: row.end_reviews,
+    review_growth: row.review_growth,
+  }));
+
+  const groups = collapseToParentGroups(variants);
+
+  const movers: ReviewMoverProduct[] = groups.map((group) => {
+    const rep = group.representative;
+    const startReviews = group.variants.reduce((sum, v) => sum + (v.start_reviews ?? 0), 0);
+    const endReviews = group.variants.reduce((sum, v) => sum + (v.end_reviews ?? 0), 0);
+    const growth = group.variants.reduce((sum, v) => sum + (v.review_growth ?? 0), 0);
+
+    return {
+      site: rep.site,
+      parent_key: group.parentKey,
+      product_url: rep.product_url ?? "",
+      product_name: group.displayName,
+      category_name: rep.category_name ?? "",
+      collection_name: rep.collection_name,
+      start_reviews: startReviews,
+      end_reviews: endReviews,
+      review_growth: growth,
+      price_text: group.priceRangeText ?? rep.price_text ?? null,
+      image_url: rep.image_url ?? guessProductImageUrl(rep.site, rep.product_url ?? ""),
+    };
+  });
+
+  movers.sort((a, b) => b.review_growth - a.review_growth || b.end_reviews - a.end_reviews);
+  return movers.slice(0, limit);
 }

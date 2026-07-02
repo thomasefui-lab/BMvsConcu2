@@ -106,3 +106,44 @@ export interface DashboardData {
   fetchedAt: string;
   source: "supabase" | "demo";
 }
+
+/** Une ligne de la RPC review_growth_between (avant regroupement parent). */
+export interface ReviewGrowthRow {
+  site: SiteId;
+  product_url: string;
+  product_name: string;
+  category_name: string;
+  collection_name: string | null;
+  price_cents: number | null;
+  price_text: string | null;
+  image_url: string | null;
+  start_reviews: number;
+  end_reviews: number;
+  review_growth: number;
+  start_scraped_at: string;
+  end_scraped_at: string;
+}
+
+/** Produit "mover" agrégé au niveau référence parent, prêt pour l'affichage. */
+export interface ReviewMoverProduct {
+  site: SiteId;
+  parent_key?: string;
+  product_url: string;
+  product_name: string;
+  category_name: string;
+  collection_name?: string | null;
+  start_reviews: number;
+  end_reviews: number;
+  review_growth: number;
+  price_text: string | null;
+  image_url: string | null;
+}
+
+/** Jour de scrape disponible pour un site (alimente les sélecteurs de période). */
+export interface ScrapeDay {
+  site: SiteId;
+  scrape_day: string;
+  first_scraped_at: string;
+  last_scraped_at: string;
+  snapshot_count: number;
+}

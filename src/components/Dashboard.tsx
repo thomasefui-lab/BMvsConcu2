@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { DashboardData } from "@/lib/types";
+import type { DashboardData, ScrapeDay } from "@/lib/types";
 import {
   buildAllProductTrees,
   buildBestSellers,
@@ -15,21 +15,24 @@ import { loadOverrides, type TaxonomyOverrides } from "@/lib/classification-over
 import { ProductTree } from "./ProductTree";
 import { NoveltiesPanel } from "./NoveltiesPanel";
 import { BestSellersPanel } from "./BestSellersPanel";
+import { BestMoversPanel } from "./BestMoversPanel";
 import { TreePrintView } from "./TreePrintView";
 
 const TABS = [
   { id: "tree", label: "Arborescence produits" },
   { id: "novelties", label: "Nouveautés" },
   { id: "bestsellers", label: "Best sellers" },
+  { id: "movers", label: "Proxy des meilleurs" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
 
 interface DashboardProps {
   data: DashboardData;
+  scrapeDays: ScrapeDay[];
 }
 
-export function Dashboard({ data }: DashboardProps) {
+export function Dashboard({ data, scrapeDays }: DashboardProps) {
   const [tab, setTab] = useState<TabId>("tree");
   const [selectedSite, setSelectedSite] = useState("bestmobilier");
   const [overrides, setOverrides] = useState<TaxonomyOverrides>(() => loadOverrides());
@@ -180,6 +183,7 @@ export function Dashboard({ data }: DashboardProps) {
         {tab === "bestsellers" && (
           <BestSellersPanel byReviews={bestSellers} byGrowth={topGrowth} lastUpdates={lastUpdates} />
         )}
+        {tab === "movers" && <BestMoversPanel scrapeDays={scrapeDays} />}
       </div>
     </div>
   );

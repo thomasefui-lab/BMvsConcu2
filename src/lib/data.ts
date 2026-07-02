@@ -2,7 +2,14 @@ import { readFileSync, existsSync } from "fs";
 import path from "path";
 import { createSupabaseServerClient } from "./supabase";
 import { fetchAllRows } from "./supabase-fetch";
-import type { DailyEventRow, DashboardData, ProductRow, SiteId } from "./types";
+import type {
+  DailyEventRow,
+  DashboardData,
+  ProductRow,
+  ReviewGrowthRow,
+  ScrapeDay,
+  SiteId,
+} from "./types";
 
 const DEMO_PATH = path.join(process.cwd(), "public", "demo-data.json");
 
@@ -149,4 +156,90 @@ export async function getDashboardData(): Promise<DashboardData> {
     fetchedAt: new Date().toISOString(),
     source: "demo",
   };
+}
+
+function parseScrapeDay(row: Record<string, unknown>): ScrapeDay {
+  return {
+    site: row.site as SiteId,
+    scrape_day: String(row.scrape_day ?? ""),
+    first_scraped_at: String(row.first_scraped_at ?? ""),
+    last_scraped_at: String(row.last_scraped_at ?? ""),
+    snapshot_count: row.snapshot_count != null ? Number(row.snapshot_count) : 0,
+  };
+}
+
+/** Jours de scrape disponibles (vue scrape_days). Vide en mode démo. */
+export async function getScrapeDays(): Promise<ScrapeDay[]> {
+  const client = createSupabaseServerClient();
+  if (!client) return [];
+
+  try {
+    const rows = await fetchAllRows<Record<string, unknown>>(async (from, to) => {
+      const { data, error } = await client
+        .from("scrape_days")
+        .select("site,scrape_day,first_scraped_at,last_scraped_at,snapshot_count")
+        .in("site", SITES)
+        .order("site", { ascending: true })
+        .order("scrape_day", { ascending: true })
+        .range(from, to);
+      return {
+        data: (data ?? null) as Record<string, unknown>[] | null,
+        error: error ? { message: error.message } : null,
+      };
+    });
+    return rows.map(parseScrapeDay);
+  } catch (error) {
+    console.error("getScrapeDays error:", error);
+    return [];
+  }
+}
+
+function parseReviewGrowthRow(row: Record<string, unknown>): ReviewGrowthRow {
+  return {
+    site: row.site as SiteId,
+    product_url: String(row.product_url ?? ""),
+    product_name: String(row.product_name ?? ""),
+    category_name: String(row.category_name ?? ""),
+    collection_name: row.collection_name ? String(row.collection_name) : null,
+    price_cents:
+      row.price_cents != null && row.price_cents !== "" ? Number(row.price_cents) : null,
+    price_text: row.price_text ? String(row.price_text) : null,
+    image_url: row.image_url ? String(row.image_url) : null,
+    start_reviews: row.start_reviews != null ? Number(row.start_reviews) : 0,
+    end_reviews: row.end_reviews != null ? Number(row.end_reviews) : 0,
+    review_growth: row.review_growth != null ? Number(row.review_growth) : 0,
+    start_scraped_at: String(row.start_scraped_at ?? ""),
+    end_scraped_at: String(row.end_scraped_at ?? ""),
+  };
+}
+
+/**
+ * Évolution d'avis bornée par période pour un site, via la RPC review_growth_between.
+ * Renvoie les lignes brutes (par product_url) ; le regroupement parent se fait ensuite en JS.
+ */
+export async function getReviewGrowth(
+  site: SiteId,
+  from: string,
+  to: string,
+  candidateLimit = 200,
+): Promise<ReviewGrowthRow[]> {
+  const client = createSupabaseServerClient();
+  if (!client) return [];
+
+  try {
+    const { data, error } = await client.rpc("review_growth_between", {
+      p_site: site,
+      p_from: from,
+      p_to: to,
+      p_limit: candidateLimit,
+    });
+    if (error) {
+      console.error("review_growth_between error:", error.message);
+      return [];
+    }
+    return ((data ?? []) as Record<string, unknown>[]).map(parseReviewGrowthRow);
+  } catch (error) {
+    console.error("getReviewGrowth error:", error);
+    return [];
+  }
 }
