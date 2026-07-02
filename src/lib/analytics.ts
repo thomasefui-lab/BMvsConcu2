@@ -95,11 +95,6 @@ function collectNoveltyKeys(
   return keys;
 }
 
-/** @deprecated alias interne */
-function collectTrueNoveltyKeys(products: ProductRow[]): Set<string> {
-  return collectNoveltyKeys(products);
-}
-
 function collectionKey(name: string | null | undefined): string | null {
   const trimmed = name?.trim();
   if (!trimmed) return null;
