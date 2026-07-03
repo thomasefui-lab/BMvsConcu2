@@ -13,6 +13,7 @@ interface PriceEvolutionPanelProps {
 export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
   const [selectedSites, setSelectedSites] = useState<SiteId[]>(["bestmobilier"]);
   const [allProducts, setAllProducts] = useState(true);
+  const [showProductList, setShowProductList] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const [bySite, setBySite] = useState<Partial<Record<SiteId, PriceHistoryPoint[]>>>({});
@@ -97,7 +98,7 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
     <div className="space-y-3">
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <p className="text-xs text-slate-500">
-          Prix moyen par date de scrape (IQR). Échelle fixe 0–2 500 € pour comparer les acteurs.
+          Prix moyen par date de scrape (IQR). Échelle fixe 0–1 000 € pour comparer les acteurs.
         </p>
 
         <div className="mt-3 space-y-3">
@@ -136,36 +137,49 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
 
           {!allProducts ? (
             <div className="space-y-1.5">
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un produit…"
-                className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"
-              />
-              <div className="max-h-36 overflow-y-auto rounded-md border border-slate-200">
-                {filteredOptions.map((p) => (
-                  <label
-                    key={p.product_url}
-                    className="flex cursor-pointer items-start gap-2 border-b border-slate-100 px-2.5 py-1.5 text-xs last:border-0 hover:bg-slate-50"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedUrls.includes(p.product_url)}
-                      onChange={() => toggleProduct(p.product_url)}
-                      className="mt-0.5"
-                    />
-                    <span>
-                      <span className="font-medium text-slate-800">{p.product_name}</span>
-                      <span className="mt-0.5 block text-[10px] text-slate-400">{p.site}</span>
-                    </span>
-                  </label>
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] text-slate-400">
+                  {selectedUrls.length} produit{selectedUrls.length > 1 ? "s" : ""} sélectionné
+                  {selectedUrls.length > 1 ? "s" : ""}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowProductList((prev) => !prev)}
+                  className="rounded border border-slate-200 px-2 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  {showProductList ? "Masquer la liste produits" : "Afficher la liste produits"}
+                </button>
               </div>
-              <p className="text-[10px] text-slate-400">
-                {selectedUrls.length} produit{selectedUrls.length > 1 ? "s" : ""} sélectionné
-                {selectedUrls.length > 1 ? "s" : ""}
-              </p>
+              {showProductList ? (
+                <>
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Rechercher un produit…"
+                    className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"
+                  />
+                  <div className="max-h-36 overflow-y-auto rounded-md border border-slate-200">
+                    {filteredOptions.map((p) => (
+                      <label
+                        key={p.product_url}
+                        className="flex cursor-pointer items-start gap-2 border-b border-slate-100 px-2.5 py-1.5 text-xs last:border-0 hover:bg-slate-50"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedUrls.includes(p.product_url)}
+                          onChange={() => toggleProduct(p.product_url)}
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="font-medium text-slate-800">{p.product_name}</span>
+                          <span className="mt-0.5 block text-[10px] text-slate-400">{p.site}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : null}
 

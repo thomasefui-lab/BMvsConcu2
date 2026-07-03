@@ -41,14 +41,14 @@ export function Dashboard({ data }: DashboardProps) {
   const bestSellers = useMemo(
     () =>
       tab === "bestsellers" || visited.has("bestsellers")
-        ? buildBestSellers(data.products, 20)
+        ? buildBestSellers(data.products, 50)
         : undefined,
     [data.products, tab, visited],
   );
   const topGrowth = useMemo(
     () =>
       tab === "bestsellers" || visited.has("bestsellers")
-        ? buildTopReviewGrowth(data.products)
+        ? buildTopReviewGrowth(data.products, 50)
         : undefined,
     [data.products, tab, visited],
   );

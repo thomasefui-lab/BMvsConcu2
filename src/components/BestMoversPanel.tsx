@@ -22,6 +22,7 @@ function startOfDayIso(day: string): string {
 }
 
 export function BestMoversPanel() {
+  const [selectedSite, setSelectedSite] = useState<SiteId>("bestmobilier");
   const [scrapeDays, setScrapeDays] = useState<ScrapeDay[]>([]);
   const [daysLoading, setDaysLoading] = useState(true);
   const [daysError, setDaysError] = useState<string | null>(null);
@@ -109,13 +110,33 @@ export function BestMoversPanel() {
 
   const invalidRange = fromDay && toDay && fromDay > toDay;
   const anySiteLoading = analyzing || Object.values(loadingSites).some(Boolean);
+  const selectedCompetitor = COMPETITORS.find((c) => c.id === selectedSite) ?? COMPETITORS[0];
+  const selectedItems = bySite[selectedSite];
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {COMPETITORS.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => setSelectedSite(c.id)}
+            disabled={analyzing}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+              c.id === selectedSite
+                ? "bg-brand-700 text-white shadow"
+                : "bg-white text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50"
+            } disabled:opacity-60`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="flex flex-wrap items-end gap-3">
           <p className="text-[11px] text-slate-500">
-            Top 25 par progression d&apos;avis sur la période (≥ 1 avis au départ).
+            Top 25 par progression d&apos;avis sur la période (≥ 1 avis au départ) —{" "}
+            {selectedCompetitor.label}.
           </p>
 
           <div className="ml-auto flex flex-wrap items-end gap-2">
@@ -191,48 +212,41 @@ export function BestMoversPanel() {
       </div>
 
       {hasAnalyzed ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {COMPETITORS.map((c) => {
-            const loading = loadingSites[c.id];
-            const items = bySite[c.id];
-
-            if (loading) {
-              return <MoverSiteSkeleton key={c.id} />;
-            }
-
-            return (
-              <div key={c.id} className="rounded-xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-200 px-4 py-3">
-                  <h3 className="font-semibold text-brand-900">{c.label}</h3>
-                  <p className="text-xs text-slate-500">
-                    {items?.length ?? 0} référence{(items?.length ?? 0) > 1 ? "s" : ""} en progression
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2">
-                  {!items?.length ? (
-                    <p className="py-4 text-center text-sm text-slate-400 col-span-full">
-                      Aucune progression sur la période
-                    </p>
-                  ) : (
-                    items.map((p, i) => (
-                      <ProductCard
-                        key={p.parent_key ?? p.product_url}
-                        site={p.site}
-                        name={`${i + 1}. ${p.product_name}`}
-                        url={p.product_url}
-                        imageUrl={p.image_url}
-                        priceText={p.price_text}
-                        reviewCount={p.end_reviews}
-                        reviewGrowth={p.review_growth}
-                        variantCount={p.variant_count}
-                        meta={`${p.start_reviews} → ${p.end_reviews} avis`}
-                      />
-                    ))
-                  )}
-                </div>
+        <div>
+          {loadingSites[selectedSite] ? (
+            <MoverSiteSkeleton />
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white">
+              <div className="border-b border-slate-200 px-4 py-3">
+                <h3 className="font-semibold text-brand-900">{selectedCompetitor.label}</h3>
+                <p className="text-xs text-slate-500">
+                  {selectedItems?.length ?? 0} référence{(selectedItems?.length ?? 0) > 1 ? "s" : ""} en progression
+                </p>
               </div>
-            );
-          })}
+              <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+                {!selectedItems?.length ? (
+                  <p className="py-4 text-center text-sm text-slate-400 col-span-full">
+                    Aucune progression sur la période
+                  </p>
+                ) : (
+                  selectedItems.map((p, i) => (
+                    <ProductCard
+                      key={p.parent_key ?? p.product_url}
+                      site={p.site}
+                      name={`${i + 1}. ${p.product_name}`}
+                      url={p.product_url}
+                      imageUrl={p.image_url}
+                      priceText={p.price_text}
+                      reviewCount={p.end_reviews}
+                      reviewGrowth={p.review_growth}
+                      variantCount={p.variant_count}
+                      meta={`${p.start_reviews} → ${p.end_reviews} avis`}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white/60 py-12 text-center">
@@ -240,14 +254,14 @@ export function BestMoversPanel() {
             Choisissez une période puis cliquez sur « Analyser ».
           </p>
           <p className="mt-1 text-xs text-slate-400">
-            Les résultats s&apos;affichent concurrent par concurrent, au fur et à mesure.
+            Les résultats s&apos;affichent uniquement pour l&apos;acteur sélectionné.
           </p>
         </div>
       )}
 
       {anySiteLoading && hasAnalyzed ? (
         <p className="text-center text-xs text-slate-400">
-          Chargement en cours — les colonnes apparaissent dès qu&apos;elles sont prêtes.
+          Chargement en cours — les résultats apparaissent dès qu&apos;ils sont prêts.
         </p>
       ) : null}
     </div>

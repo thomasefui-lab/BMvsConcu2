@@ -78,7 +78,7 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
                   x2={width - pad.right}
                   y2={y}
                   stroke="#e2e8f0"
-                  strokeDasharray={val === 250_000 ? "0" : "4 4"}
+                  strokeDasharray={val === 100_000 ? "0" : "4 4"}
                 />
                 <text x={pad.left - 6} y={y + 3} textAnchor="end" className="fill-slate-400 text-[9px]">
                   {formatCentsAsEuros(val)}

@@ -80,8 +80,8 @@ export function aggregatePriceBySiteAndDay(
   return result;
 }
 
-/** Échelle Y fixe pour comparer les acteurs : 0 € → 2 500 €, plafond relevé si besoin. */
-export const PRICE_CHART_BASE_MAX_CENTS = 250_000;
+/** Échelle Y fixe pour comparer les acteurs : 0 € → 1 000 €, plafond relevé si besoin. */
+export const PRICE_CHART_BASE_MAX_CENTS = 100_000;
 
 export function priceChartMaxCents(values: number[]): number {
   const dataMax = values.length ? Math.max(...values) : 0;
