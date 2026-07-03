@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { PriceHistoryPoint, ProductRow, SiteId } from "@/lib/types";
 import { COMPETITORS } from "@/lib/types";
 import { LoadingSpinner } from "./ui/LoadingSpinner";
-import { PriceChart } from "./PriceChart";
+import { buildChartSeries, PriceChart } from "./PriceChart";
 
 interface PriceEvolutionPanelProps {
   products: ProductRow[];
@@ -15,7 +15,7 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
   const [allProducts, setAllProducts] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
-  const [series, setSeries] = useState<PriceHistoryPoint[]>([]);
+  const [bySite, setBySite] = useState<Partial<Record<SiteId, PriceHistoryPoint[]>>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasLoaded, setHasLoaded] = useState(false);
@@ -37,6 +37,21 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
     });
     return list.slice(0, 80);
   }, [catalog, search]);
+
+  const siteLabels = useMemo(
+    () => Object.fromEntries(COMPETITORS.map((c) => [c.id, c.label])) as Record<SiteId, string>,
+    [],
+  );
+
+  const chartSeries = useMemo(() => buildChartSeries(bySite, siteLabels), [bySite, siteLabels]);
+
+  const totalOutliers = useMemo(
+    () =>
+      Object.values(bySite)
+        .flat()
+        .reduce((sum, p) => sum + p.excluded_outliers, 0),
+    [bySite],
+  );
 
   const toggleSite = (site: SiteId) => {
     setSelectedSites((prev) =>
@@ -66,55 +81,48 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(body?.error ?? `Erreur ${res.status}`);
       }
-      const body = (await res.json()) as { series: PriceHistoryPoint[] };
-      setSeries(body.series ?? []);
+      const body = (await res.json()) as {
+        bySite: Partial<Record<SiteId, PriceHistoryPoint[]>>;
+      };
+      setBySite(body.bySite ?? {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur inconnue");
-      setSeries([]);
+      setBySite({});
     } finally {
       setLoading(false);
     }
   };
 
-  const totalOutliers = series.reduce((sum, p) => sum + p.excluded_outliers, 0);
-
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <h2 className="text-lg font-bold text-brand-900">Évolution des prix</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Prix moyen par date de scrape, hors valeurs aberrantes (filtre IQR). Sélectionnez un ou
-          plusieurs acteurs et éventuellement des produits précis.
+    <div className="space-y-3">
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <p className="text-xs text-slate-500">
+          Prix moyen par date de scrape (IQR). Échelle fixe 0–2 500 € pour comparer les acteurs.
         </p>
 
-        <div className="mt-4 space-y-4">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Acteurs
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {COMPETITORS.map((c) => (
-                <label
-                  key={c.id}
-                  className={`flex cursor-pointer items-center gap-2 rounded-full px-3 py-1.5 text-sm ring-1 ${
-                    selectedSites.includes(c.id)
-                      ? "bg-brand-700 text-white ring-brand-700"
-                      : "bg-white text-slate-600 ring-slate-200"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={selectedSites.includes(c.id)}
-                    onChange={() => toggleSite(c.id)}
-                  />
-                  {c.label}
-                </label>
-              ))}
-            </div>
+        <div className="mt-3 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {COMPETITORS.map((c) => (
+              <label
+                key={c.id}
+                className={`flex cursor-pointer items-center rounded-full px-2.5 py-1 text-xs ring-1 ${
+                  selectedSites.includes(c.id)
+                    ? "bg-brand-700 text-white ring-brand-700"
+                    : "bg-white text-slate-600 ring-slate-200"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={selectedSites.includes(c.id)}
+                  onChange={() => toggleSite(c.id)}
+                />
+                {c.label}
+              </label>
+            ))}
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-xs text-slate-700">
             <input
               type="checkbox"
               checked={allProducts}
@@ -123,38 +131,38 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
                 if (e.target.checked) setSelectedUrls([]);
               }}
             />
-            Tous les produits des acteurs sélectionnés (moyenne globale)
+            Tous les produits (moyenne par acteur)
           </label>
 
           {!allProducts ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <input
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Rechercher un produit par nom ou URL…"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                placeholder="Rechercher un produit…"
+                className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs"
               />
-              <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200">
+              <div className="max-h-36 overflow-y-auto rounded-md border border-slate-200">
                 {filteredOptions.map((p) => (
                   <label
                     key={p.product_url}
-                    className="flex cursor-pointer items-start gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-0 hover:bg-slate-50"
+                    className="flex cursor-pointer items-start gap-2 border-b border-slate-100 px-2.5 py-1.5 text-xs last:border-0 hover:bg-slate-50"
                   >
                     <input
                       type="checkbox"
                       checked={selectedUrls.includes(p.product_url)}
                       onChange={() => toggleProduct(p.product_url)}
-                      className="mt-1"
+                      className="mt-0.5"
                     />
                     <span>
                       <span className="font-medium text-slate-800">{p.product_name}</span>
-                      <span className="mt-0.5 block text-xs text-slate-400">{p.site}</span>
+                      <span className="mt-0.5 block text-[10px] text-slate-400">{p.site}</span>
                     </span>
                   </label>
                 ))}
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-[10px] text-slate-400">
                 {selectedUrls.length} produit{selectedUrls.length > 1 ? "s" : ""} sélectionné
                 {selectedUrls.length > 1 ? "s" : ""}
               </p>
@@ -165,34 +173,28 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
             type="button"
             onClick={loadChart}
             disabled={loading || !selectedSites.length || (!allProducts && !selectedUrls.length)}
-            className="flex items-center gap-2 rounded-lg bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-600 disabled:opacity-60"
+            className="rounded-md bg-brand-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
           >
-            {loading ? (
-              <>
-                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Calcul…
-              </>
-            ) : (
-              "Afficher la courbe"
-            )}
+            {loading ? "Calcul…" : "Afficher la courbe"}
           </button>
         </div>
 
-        {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
+        {error ? <p className="mt-2 text-xs text-rose-600">{error}</p> : null}
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <LoadingSpinner label="Construction de la courbe de prix…" />
+        <div className="flex justify-center py-10">
+          <LoadingSpinner label="Construction de la courbe…" />
         </div>
       ) : null}
 
       {!loading && hasLoaded ? (
         <>
-          <PriceChart series={series} />
-          {series.length > 0 ? (
-            <p className="text-center text-xs text-slate-400">
-              {series.length} dates de scrape · {totalOutliers > 0 ? `${totalOutliers} valeurs aberrantes exclues` : "aucun outlier détecté"}
+          <PriceChart series={chartSeries} />
+          {chartSeries.length > 0 ? (
+            <p className="text-center text-[10px] text-slate-400">
+              {chartSeries.length} acteur{chartSeries.length > 1 ? "s" : ""} ·{" "}
+              {totalOutliers > 0 ? `${totalOutliers} outliers exclus` : "aucun outlier"}
             </p>
           ) : null}
         </>

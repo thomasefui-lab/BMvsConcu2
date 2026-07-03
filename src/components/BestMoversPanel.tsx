@@ -111,32 +111,28 @@ export function BestMoversPanel() {
   const anySiteLoading = analyzing || Object.values(loadingSites).some(Boolean);
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-brand-900">Meilleures ventes actuelles</h2>
-            <p className="mt-1 max-w-2xl text-sm text-slate-500">
-              Top 25 des références dont le nombre d&apos;avis a le plus progressé sur la période
-              choisie (à partir d&apos;au moins 1 avis en début de période).
-            </p>
-          </div>
+    <div className="space-y-3">
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <p className="text-[11px] text-slate-500">
+            Top 25 par progression d&apos;avis sur la période (≥ 1 avis au départ).
+          </p>
 
-          <div className="ml-auto flex flex-wrap items-end gap-3">
+          <div className="ml-auto flex flex-wrap items-end gap-2">
             {daysLoading ? (
-              <div className="flex items-center gap-2 pb-2 text-sm text-slate-500">
+              <div className="flex items-center gap-2 pb-1 text-xs text-slate-500">
                 <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
                 Dates…
               </div>
             ) : (
               <>
-                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                <label className="flex flex-col gap-0.5 text-[10px] font-medium text-slate-600">
                   Du
                   <select
                     value={fromDay}
                     onChange={(e) => setFromDay(e.target.value)}
                     disabled={!hasData || analyzing}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 disabled:opacity-50"
+                    className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
                   >
                     {days.map((d) => (
                       <option key={d} value={d}>
@@ -145,13 +141,13 @@ export function BestMoversPanel() {
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
+                <label className="flex flex-col gap-0.5 text-[10px] font-medium text-slate-600">
                   Au
                   <select
                     value={toDay}
                     onChange={(e) => setToDay(e.target.value)}
                     disabled={!hasData || analyzing}
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 disabled:opacity-50"
+                    className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 disabled:opacity-50"
                   >
                     {days.map((d) => (
                       <option key={d} value={d}>

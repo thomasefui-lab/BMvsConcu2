@@ -10,7 +10,7 @@ import type {
   ScrapeDay,
   SiteId,
 } from "./types";
-import { aggregatePriceByDay, type RawPriceObservation } from "./price-analytics";
+import { aggregatePriceByDay, aggregatePriceBySiteAndDay, type RawPriceObservation } from "./price-analytics";
 
 const DEMO_PATH = path.join(process.cwd(), "public", "demo-data.json");
 
@@ -298,6 +298,7 @@ export async function getPriceObservations(
     });
 
     return rows.map((row) => ({
+      site: String(row.site),
       scrape_day: String(row.scraped_at ?? "").slice(0, 10),
       price_cents: Number(row.price_cents),
     }));
@@ -309,5 +310,8 @@ export async function getPriceObservations(
 
 export async function getPriceHistorySeries(sites: SiteId[], productUrls?: string[]) {
   const observations = await getPriceObservations(sites, productUrls);
-  return aggregatePriceByDay(observations);
+  return {
+    series: aggregatePriceByDay(observations),
+    bySite: aggregatePriceBySiteAndDay(observations, sites) as Partial<Record<SiteId, ReturnType<typeof aggregatePriceByDay>>>,
+  };
 }

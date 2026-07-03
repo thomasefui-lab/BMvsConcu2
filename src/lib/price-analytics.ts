@@ -24,14 +24,21 @@ export function formatCentsAsEuros(cents: number): string {
 }
 
 export interface RawPriceObservation {
+  site: string;
   scrape_day: string;
   price_cents: number;
 }
 
+export type PriceDayAggregate = {
+  scrape_day: string;
+  avg_cents: number;
+  median_cents: number;
+  sample_count: number;
+  excluded_outliers: number;
+};
+
 /** Agrège des observations prix par jour avec exclusion des outliers. */
-export function aggregatePriceByDay(
-  observations: RawPriceObservation[],
-): { scrape_day: string; avg_cents: number; median_cents: number; sample_count: number; excluded_outliers: number }[] {
+export function aggregatePriceByDay(observations: RawPriceObservation[]): PriceDayAggregate[] {
   const byDay = new Map<string, number[]>();
   for (const obs of observations) {
     if (obs.price_cents <= 0) continue;
@@ -57,4 +64,36 @@ export function aggregatePriceByDay(
       };
     })
     .filter((row) => row.sample_count > 0);
+}
+
+/** Agrège par acteur puis par jour (une courbe par site). */
+export function aggregatePriceBySiteAndDay(
+  observations: RawPriceObservation[],
+  sites: string[],
+): Record<string, PriceDayAggregate[]> {
+  const result: Record<string, PriceDayAggregate[]> = {};
+  for (const site of sites) {
+    const siteObs = observations.filter((o) => o.site === site);
+    const series = aggregatePriceByDay(siteObs);
+    if (series.length) result[site] = series;
+  }
+  return result;
+}
+
+/** Échelle Y fixe pour comparer les acteurs : 0 € → 2 500 €, plafond relevé si besoin. */
+export const PRICE_CHART_BASE_MAX_CENTS = 250_000;
+
+export function priceChartMaxCents(values: number[]): number {
+  const dataMax = values.length ? Math.max(...values) : 0;
+  if (dataMax <= PRICE_CHART_BASE_MAX_CENTS) return PRICE_CHART_BASE_MAX_CENTS;
+  const step = 50_000;
+  return Math.ceil(dataMax / step) * step;
+}
+
+export function priceChartTickCents(maxCents: number): number[] {
+  const step = 50_000;
+  const ticks: number[] = [];
+  for (let v = 0; v <= maxCents; v += step) ticks.push(v);
+  if (ticks[ticks.length - 1] !== maxCents) ticks.push(maxCents);
+  return ticks;
 }

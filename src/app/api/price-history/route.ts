@@ -25,6 +25,6 @@ export async function GET(request: Request) {
     ? productsParam.split(",").map((u) => u.trim()).filter(Boolean)
     : undefined;
 
-  const series = await getPriceHistorySeries(sites, productUrls);
-  return NextResponse.json({ sites, productUrls: productUrls ?? null, series });
+  const { series, bySite } = await getPriceHistorySeries(sites, productUrls);
+  return NextResponse.json({ sites, productUrls: productUrls ?? null, series, bySite });
 }

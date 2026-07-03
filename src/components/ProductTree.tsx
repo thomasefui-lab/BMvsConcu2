@@ -177,14 +177,14 @@ export function ProductTree({
 
   return (
     <>
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {latestTrees.map((t) => (
               <button
                 key={t.site}
                 onClick={() => onSelectSite(t.site)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
                   t.site === tree.site
                     ? "bg-brand-700 text-white shadow"
                     : "bg-white text-brand-700 ring-1 ring-brand-200 hover:bg-brand-50"
@@ -214,15 +214,15 @@ export function ProductTree({
         </div>
 
         {siteDays.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <label className="text-xs font-medium text-slate-600">
-              Date de scrape — {tree.label}
+          <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2">
+            <label className="text-[11px] font-medium text-slate-600">
+              Scrape — {tree.label}
               <select
                 value={selectedDay}
                 onChange={(e) =>
                   setDayBySite((prev) => ({ ...prev, [site]: e.target.value }))
                 }
-                className="ml-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+                className="ml-1.5 rounded border border-slate-300 bg-white px-2 py-1 text-xs"
               >
                 {siteDays.map((d) => (
                   <option key={d} value={d}>
@@ -233,46 +233,32 @@ export function ProductTree({
               </select>
             </label>
             {!isInteractive ? (
-              <span className="text-xs text-amber-700">
-                Vue historique — structure uniquement (pas de détail produit).
-              </span>
+              <span className="text-[10px] text-amber-700">Vue historique (structure seule)</span>
             ) : null}
           </div>
         ) : null}
 
-        <p className="text-xs text-slate-500">
-          {isInteractive ? (
-            <>
-              Cliquez pour voir les produits.{" "}
-              <strong>Maintenez et glissez</strong> une sous-catégorie (poignée ⋮⋮) vers une autre
-              branche pour la déplacer.
-            </>
-          ) : (
-            <>Arborescence figée au {formatOfferUpdateDateShort(`${selectedDay}T12:00:00.000Z`)}.</>
-          )}
-        </p>
-
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50 p-6">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div className="min-w-[900px]">
-            <div className="flex items-start justify-center gap-4">
+            <div className="flex items-start justify-center gap-3">
               <div className="flex flex-col items-center">
-                <div className="rounded-md bg-brand-800 px-8 py-3 text-center text-white shadow-lg">
-                  <div className="text-lg font-bold tracking-wide">{tree.label.toUpperCase()}</div>
+                <div className="rounded bg-brand-800 px-4 py-1.5 text-center text-white shadow">
+                  <div className="text-xs font-semibold tracking-wide">{tree.label.toUpperCase()}</div>
                 </div>
-                <div className="mt-2 rounded border-2 border-brand-700 bg-white px-6 py-2 text-center text-sm font-semibold text-brand-900">
+                <div className="mt-1.5 rounded border border-brand-700 bg-white px-3 py-1 text-center text-xs font-semibold text-brand-900">
                   <CountSplit products={tree.total} collections={tree.totalCollections} />
-                  <span className="mt-0.5 block text-[10px] font-normal text-slate-500">
+                  <span className="mt-0.5 block text-[9px] font-normal text-slate-500">
                     produits | collections
                   </span>
                 </div>
-                <div className="h-8 w-px bg-brand-400" />
+                <div className="h-6 w-px bg-brand-400" />
               </div>
 
-              <div className="mt-1 min-w-[120px] rounded-lg border-2 border-brand-500 bg-white px-4 py-3 text-center shadow-sm">
-                <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
+              <div className="mt-0.5 min-w-[100px] rounded border border-brand-500 bg-white px-3 py-2 text-center shadow-sm">
+                <div className="text-[9px] font-medium uppercase tracking-wide text-slate-500">
                   Collections
                 </div>
-                <div className="text-2xl font-bold text-brand-800">
+                <div className="text-lg font-bold text-brand-800">
                   {tree.totalCollections.toLocaleString("fr-FR")}
                 </div>
                 <div className="text-[10px] text-slate-400">noms uniques</div>

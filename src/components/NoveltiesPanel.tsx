@@ -86,14 +86,8 @@ export function NoveltiesPanel({ products, overrides, lastUpdates }: NoveltiesPa
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
-        <div>
-          <h2 className="text-sm font-semibold text-brand-900">Filtre nouveautés</h2>
-          <p className="text-xs text-slate-500">
-            Par défaut : depuis le 1er scrape de référence. Activez le filtre pour choisir une date.
-          </p>
-        </div>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+      <div className="mb-3 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-2.5">
+        <label className="flex items-center gap-2 text-xs text-slate-700">
           <input
             type="checkbox"
             checked={useCustomSince}
@@ -110,7 +104,7 @@ export function NoveltiesPanel({ products, overrides, lastUpdates }: NoveltiesPa
           value={sinceDay}
           disabled={!useCustomSince || !availableDays.length}
           onChange={(e) => setSinceDay(e.target.value)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm disabled:opacity-50"
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs disabled:opacity-50"
         >
           {availableDays.map((d) => (
             <option key={d} value={d}>
@@ -120,13 +114,12 @@ export function NoveltiesPanel({ products, overrides, lastUpdates }: NoveltiesPa
         </select>
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-[1.4fr_1fr]">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-200 bg-brand-50 px-4 py-3">
-            <h3 className="font-semibold text-brand-900">Nouveautés par catégorie</h3>
-            <p className="text-xs text-slate-500">
-              Produit nouveau = détecté après la base de référence (1er scrape), sans avis à l&apos;entrée.
-              Remis en ligne avec avis = exclu. Cliquez sur un chiffre pour voir les produits.
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 bg-brand-50 px-3 py-2">
+            <h3 className="text-xs font-semibold text-brand-900">Nouveautés par catégorie</h3>
+            <p className="text-[10px] text-slate-500">
+              Sans avis à l&apos;entrée. Cliquez sur un chiffre pour le détail.
             </p>
           </div>
           <div className="overflow-x-auto">

@@ -160,6 +160,14 @@ export interface PriceHistoryPoint {
   excluded_outliers: number;
 }
 
+export const SITE_CHART_COLORS: Record<SiteId, string> = {
+  bestmobilier: "#1e40af",
+  bobochic: "#dc2626",
+  sweeek: "#059669",
+  baita: "#d97706",
+  habitat: "#7c3aed",
+};
+
 export interface ProductSearchOption {
   site: SiteId;
   product_url: string;
