@@ -98,7 +98,7 @@ export function PriceEvolutionPanel({ products }: PriceEvolutionPanelProps) {
     <div className="space-y-3">
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <p className="text-xs text-slate-500">
-          Prix moyen par date de scrape (IQR). Échelle fixe 0–1 000 € pour comparer les acteurs.
+          Prix moyen par date de scrape (IQR). Échelle fixe 0–500 € pour comparer les acteurs.
         </p>
 
         <div className="mt-3 space-y-3">

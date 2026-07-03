@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { PriceHistoryPoint, SiteId } from "@/lib/types";
 import { SITE_CHART_COLORS } from "@/lib/types";
 import {
   formatCentsAsEuros,
+  PRICE_CHART_BASE_MAX_CENTS,
   priceChartMaxCents,
   priceChartTickCents,
 } from "@/lib/price-analytics";
@@ -21,23 +23,30 @@ interface PriceChartProps {
   height?: number;
 }
 
-export function PriceChart({ series, height = 360 }: PriceChartProps) {
-  const active = series.filter((s) => s.points.length > 0);
-  if (!active.length) {
-    return (
-      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
-        Aucune donnée prix pour ces filtres.
-      </div>
-    );
-  }
+interface HoverState {
+  day: string;
+  x: number;
+  clientX: number;
+  clientY: number;
+}
 
+export function PriceChart({ series, height = 360 }: PriceChartProps) {
+  const [hover, setHover] = useState<HoverState | null>(null);
+
+  const active = series.filter((s) => s.points.length > 0);
   const width = 900;
   const pad = { top: 16, right: 20, bottom: 40, left: 56 };
   const innerW = width - pad.left - pad.right;
   const innerH = height - pad.top - pad.bottom;
 
-  const allDays = [...new Set(active.flatMap((s) => s.points.map((p) => p.scrape_day)))].sort();
-  const allValues = active.flatMap((s) => s.points.map((p) => p.avg_cents));
+  const allDays = useMemo(
+    () => [...new Set(active.flatMap((s) => s.points.map((p) => p.scrape_day)))].sort(),
+    [active],
+  );
+  const allValues = useMemo(
+    () => active.flatMap((s) => s.points.map((p) => p.avg_cents)),
+    [active],
+  );
   const maxY = priceChartMaxCents(allValues);
   const ticks = priceChartTickCents(maxY);
 
@@ -50,8 +59,53 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
     return { x, y };
   };
 
+  const snapDayFromSvgX = (svgX: number): { day: string; x: number } | null => {
+    if (svgX < pad.left || svgX > width - pad.right || !allDays.length) return null;
+    const ratio = (svgX - pad.left) / innerW;
+    const idx = Math.round(ratio * Math.max(allDays.length - 1, 0));
+    const clamped = Math.min(Math.max(idx, 0), allDays.length - 1);
+    const day = allDays[clamped];
+    return { day, x: toPoint(day, 0).x };
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * width;
+    const snapped = snapDayFromSvgX(svgX);
+    if (!snapped) {
+      setHover(null);
+      return;
+    }
+    setHover({
+      day: snapped.day,
+      x: snapped.x,
+      clientX: e.clientX,
+      clientY: e.clientY,
+    });
+  };
+
+  const hoverRows = useMemo(() => {
+    if (!hover) return [];
+    return active
+      .map((s) => {
+        const pt = s.points.find((p) => p.scrape_day === hover.day);
+        if (!pt) return null;
+        return { label: s.label, color: s.color, cents: pt.avg_cents, point: pt };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+  }, [active, hover]);
+
+  if (!active.length) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
+        Aucune donnée prix pour ces filtres.
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-2">
+    <div className="relative rounded-lg border border-slate-200 bg-white p-2">
       {active.length > 1 ? (
         <div className="mb-2 flex flex-wrap gap-3 px-1">
           {active.map((s) => (
@@ -66,8 +120,22 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
         </div>
       ) : null}
       <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[640px]" role="img">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="w-full min-w-[640px] cursor-crosshair"
+          role="img"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setHover(null)}
+        >
           <title>Évolution du prix moyen</title>
+          <rect
+            x={pad.left}
+            y={pad.top}
+            width={innerW}
+            height={innerH}
+            fill="transparent"
+            pointerEvents="all"
+          />
           {ticks.map((val) => {
             const y = pad.top + innerH - (val / maxY) * innerH;
             return (
@@ -78,7 +146,7 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
                   x2={width - pad.right}
                   y2={y}
                   stroke="#e2e8f0"
-                  strokeDasharray={val === 100_000 ? "0" : "4 4"}
+                  strokeDasharray={val === PRICE_CHART_BASE_MAX_CENTS ? "0" : "4 4"}
                 />
                 <text x={pad.left - 6} y={y + 3} textAnchor="end" className="fill-slate-400 text-[9px]">
                   {formatCentsAsEuros(val)}
@@ -86,13 +154,25 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
               </g>
             );
           })}
+          {hover ? (
+            <line
+              x1={hover.x}
+              y1={pad.top}
+              x2={hover.x}
+              y2={pad.top + innerH}
+              stroke="#94a3b8"
+              strokeWidth="1"
+              strokeDasharray="4 4"
+              pointerEvents="none"
+            />
+          ) : null}
           {active.map((s) => {
             const pts = s.points
               .map((p) => ({ p, ...toPoint(p.scrape_day, p.avg_cents) }))
               .sort((a, b) => a.p.scrape_day.localeCompare(b.p.scrape_day));
             const polyline = pts.map((pt) => `${pt.x},${pt.y}`).join(" ");
             return (
-              <g key={s.site}>
+              <g key={s.site} pointerEvents="none">
                 <polyline
                   fill="none"
                   stroke={s.color}
@@ -101,13 +181,15 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
                   points={polyline}
                 />
                 {pts.map((pt) => (
-                  <circle key={pt.p.scrape_day} cx={pt.x} cy={pt.y} r="3" fill={s.color}>
-                    <title>
-                      {s.label} — {formatOfferUpdateDateShort(`${pt.p.scrape_day}T12:00:00.000Z`)} —{" "}
-                      {formatCentsAsEuros(pt.p.avg_cents)} ({pt.p.sample_count} obs.
-                      {pt.p.excluded_outliers > 0 ? `, ${pt.p.excluded_outliers} outliers exclus` : ""})
-                    </title>
-                  </circle>
+                  <circle
+                    key={pt.p.scrape_day}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={hover?.day === pt.p.scrape_day ? 5 : 3}
+                    fill={s.color}
+                    stroke={hover?.day === pt.p.scrape_day ? "#fff" : "none"}
+                    strokeWidth={hover?.day === pt.p.scrape_day ? 1.5 : 0}
+                  />
                 ))}
               </g>
             );
@@ -120,6 +202,7 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
                 y={height - 10}
                 textAnchor="middle"
                 className="fill-slate-500 text-[8px]"
+                pointerEvents="none"
               >
                 {formatOfferUpdateDateShort(`${day}T12:00:00.000Z`)}
               </text>
@@ -127,6 +210,33 @@ export function PriceChart({ series, height = 360 }: PriceChartProps) {
           )}
         </svg>
       </div>
+
+      {hover && hoverRows.length > 0 ? (
+        <div
+          className="pointer-events-none fixed z-50 min-w-[140px] rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs shadow-lg"
+          style={{ left: hover.clientX + 14, top: hover.clientY - 12 }}
+        >
+          <p className="mb-1.5 font-semibold text-slate-800">
+            {formatOfferUpdateDateShort(`${hover.day}T12:00:00.000Z`)}
+          </p>
+          <ul className="space-y-1">
+            {hoverRows.map((row) => (
+              <li key={row.label} className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-1.5 text-slate-600">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: row.color }}
+                  />
+                  {row.label}
+                </span>
+                <span className="font-medium tabular-nums text-slate-900">
+                  {formatCentsAsEuros(row.cents)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

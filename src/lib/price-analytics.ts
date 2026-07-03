@@ -80,20 +80,19 @@ export function aggregatePriceBySiteAndDay(
   return result;
 }
 
-/** Échelle Y fixe pour comparer les acteurs : 0 € → 1 000 €, plafond relevé si besoin. */
-export const PRICE_CHART_BASE_MAX_CENTS = 100_000;
+/** Échelle Y fixe pour comparer les acteurs : 0 € → 500 €, plafond relevé par paliers de 250 €. */
+export const PRICE_CHART_BASE_MAX_CENTS = 50_000;
+export const PRICE_CHART_STEP_CENTS = 25_000;
 
 export function priceChartMaxCents(values: number[]): number {
   const dataMax = values.length ? Math.max(...values) : 0;
   if (dataMax <= PRICE_CHART_BASE_MAX_CENTS) return PRICE_CHART_BASE_MAX_CENTS;
-  const step = 50_000;
-  return Math.ceil(dataMax / step) * step;
+  return Math.ceil(dataMax / PRICE_CHART_STEP_CENTS) * PRICE_CHART_STEP_CENTS;
 }
 
 export function priceChartTickCents(maxCents: number): number[] {
-  const step = 50_000;
   const ticks: number[] = [];
-  for (let v = 0; v <= maxCents; v += step) ticks.push(v);
+  for (let v = 0; v <= maxCents; v += PRICE_CHART_STEP_CENTS) ticks.push(v);
   if (ticks[ticks.length - 1] !== maxCents) ticks.push(maxCents);
   return ticks;
 }
